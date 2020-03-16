@@ -25,6 +25,7 @@ Reset:
 
     ldx #$D0        ; green playfield
     stx COLUPF
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Initialise variables
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -72,9 +73,9 @@ DivideLoop:
     sta WSYNC           ; wait for scanline
     sta HMOVE           ; apply the fine position offset
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Let the TIA output the recommended 37 scanlines of VBLANK
+;; Let the TIA output the recommended 35 scanlines of VBLANK
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    REPEAT 37
+    REPEAT 35
     	sta WSYNC
     REPEND
     
@@ -88,7 +89,7 @@ DivideLoop:
         sta WSYNC
     REPEND
 
-    ldy 17                       ; counter to draw 8 rows of bitmap
+    ldy #17                       ; counter to draw 8 rows of bitmap
 DrawBitmap:
     lda P0Bitmap,Y              ; load player bitmap  slice of data                        ; X to A
     sta GRP0                    ; set graphics for player 0 slice
@@ -104,7 +105,7 @@ DrawBitmap:
     lda #0
     sta GRP0                    ; disable P0 bitmap graphic
 
-    lda #1                      ; enable grass playfield
+    lda #$FF                      ; enable grass playfield
     sta PF0
     sta PF1
     sta PF2
@@ -172,24 +173,45 @@ NoInput:
 ;; Lookup table for the player graphics bitmap
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 P0Bitmap:
-    byte #%00101000
-    byte #%01110100
-    byte #%11111010
-    byte #%11111010
-    byte #%11111010
-    byte #%11111110
-    byte #%01101100
-    byte #%00110000
+    byte #%00000000
+    byte #%00010100
+    byte #%00010100
+    byte #%00010100
+    byte #%00010100
+    byte #%00010100
+    byte #%00011100
+    byte #%01011101
+    byte #%01011101
+    byte #%01011101
+    byte #%01011101
+    byte #%01111111
+    byte #%00111110
+    byte #%00010000
+    byte #%00011100
+    byte #%00011100
+    byte #%00011100
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Lookup table for the player colors
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 P0Color:
-    byte #$40
-    byte #$40
-    byte #$40
-    byte #$40
-    byte #$42
-    byte #$42
-    byte #$44
-    byte #$D2
+    byte #$00
+    byte #$F6
+    byte #$F2
+    byte #$F2
+    byte #$F2
+    byte #$F2
+    byte #$F2
+    byte #$C2
+    byte #$C2
+    byte #$C2
+    byte #$C2
+    byte #$C2
+    byte #$C2
+    byte #$3E
+    byte #$3E
+    byte #$3E
+    byte #$24
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
