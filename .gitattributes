@@ -1,2 +1,3 @@
 *.html linguist-detectable=false
 *.asm linguist-language=Assembly
+*.asm linguist-detectable=true
