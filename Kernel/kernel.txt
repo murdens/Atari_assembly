@@ -1,0 +1,5770 @@
+------- FILE kernel.asm LEVEL 1 PASS 1
+      1  0000 ????
+      2  0000 ????				      processor	6502
+      3  0000 ????
+------- FILE vcs.h LEVEL 2 PASS 1
+      0  0000 ????				      include	"vcs.h"
+      1  0000 ????						; VCS.H
+      2  0000 ????						; Version 1.05, 13/November/2003
+      3  0000 ????
+      4  0000 ????	       00 69	   VERSION_VCS =	105
+      5  0000 ????
+      6  0000 ????						; THIS IS A PRELIMINARY RELEASE OF *THE* "STANDARD" VCS.H
+      7  0000 ????						; THIS FILE IS EXPLICITLY SUPPORTED AS A DASM-PREFERRED COMPANION FILE
+      8  0000 ????						; PLEASE DO *NOT* REDISTRIBUTE THIS FILE!
+      9  0000 ????						;
+     10  0000 ????						; This file defines hardware registers and memory mapping for the
+     11  0000 ????						; Atari 2600. It is distributed as a companion machine-specific support package
+     12  0000 ????						; for the DASM compiler. Updates to this file, DASM, and associated tools are
+     13  0000 ????						; available at at http://www.atari2600.org/dasm
+     14  0000 ????						;
+     15  0000 ????						; Many thanks to the original author(s) of this file, and to everyone who has
+     16  0000 ????						; contributed to understanding the Atari 2600.  If you take issue with the
+     17  0000 ????						; contents, or naming of registers, please write to me (atari2600@taswegian.com)
+     18  0000 ????						; with your views.  Please contribute, if you think you can improve this
+     19  0000 ????						; file!
+     20  0000 ????						;
+     21  0000 ????						; Latest Revisions...
+     22  0000 ????						; 1.05  13/NOV/2003	  - Correction to 1.04 - now functions as requested by MR.
+     23  0000 ????						;			  - Added VERSION_VCS equate (which will reflect 100x version #)
+     24  0000 ????						;			    This will allow conditional code to verify VCS.H being
+     25  0000 ????						;			    used for code assembly.
+     26  0000 ????						; 1.04  12/NOV/2003	 Added TIA_BASE_WRITE_ADDRESS and TIA_BASE_READ_ADDRESS for
+     27  0000 ????						;			 convenient disassembly/reassembly compatibility for hardware
+     28  0000 ????						;			 mirrored reading/writing differences.	This is more a
+     29  0000 ????						;			 readability issue, and binary compatibility with disassembled
+     30  0000 ????						;			 and reassembled sources.  Per Manuel Rotschkar's suggestion.
+     31  0000 ????						; 1.03  12/MAY/2003	 Added SEG segment at end of file to fix old-code compatibility
+     32  0000 ????						;			 which was broken by the use of segments in this file, as
+     33  0000 ????						;			 reported by Manuel Polik on [stella] 11/MAY/2003
+     34  0000 ????						; 1.02  22/MAR/2003	 Added TIMINT($285)
+     35  0000 ????						; 1.01				Constant offset added to allow use for 3F-style bankswitching
+     36  0000 ????						;						 - define TIA_BASE_ADDRESS as $40 for Tigervision carts, otherwise
+     37  0000 ????						;						   it is safe to leave it undefined, and the base address will
+     38  0000 ????						;						   be set to 0.  Thanks to Eckhard Stolberg for the suggestion.
+     39  0000 ????						;			    Note, may use -DLABEL=EXPRESSION to define TIA_BASE_ADDRESS
+     40  0000 ????						;			  - register definitions are now generated through assignment
+     41  0000 ????						;			    in uninitialised segments.	This allows a changeable base
+     42  0000 ????						;			    address architecture.
+     43  0000 ????						; 1.0	22/MAR/2003		Initial release
+     44  0000 ????						;-------------------------------------------------------------------------------
+     45  0000 ????						; TIA_BASE_ADDRESS
+     46  0000 ????						; The TIA_BASE_ADDRESS defines the base address of access to TIA registers.
+     47  0000 ????						; Normally 0, the base address should (externally, before including this file)
+     48  0000 ????						; be set to $40 when creating 3F-bankswitched (and other?) cartridges.
+     49  0000 ????						; The reason is that this bankswitching scheme treats any access to locations
+     50  0000 ????						; < $40 as a bankswitch.
+     51  0000 ????				      IFNCONST	TIA_BASE_ADDRESS
+     52  0000 ????	       00 00	   TIA_BASE_ADDRESS =	0
+     53  0000 ????				      ENDIF
+     54  0000 ????						; Note: The address may be defined on the command-line using the -D switch, eg:
+     55  0000 ????						; dasm.exe code.asm -DTIA_BASE_ADDRESS=$40 -f3 -v5 -ocode.bin
+     56  0000 ????						; *OR* by declaring the label before including this file, eg:
+     57  0000 ????						; TIA_BASE_ADDRESS = $40
+     58  0000 ????						;   include "vcs.h"
+     59  0000 ????						; Alternate read/write address capability - allows for some disassembly compatibility
+     60  0000 ????						; usage ; to allow reassembly to binary perfect copies).  This is essentially catering
+     61  0000 ????						; for the mirrored ROM hardware registers.
+     62  0000 ????						; Usage: As per above, define the TIA_BASE_READ_ADDRESS and/or TIA_BASE_WRITE_ADDRESS
+     63  0000 ????						; using the -D command-line switch, as required.  If the addresses are not defined,
+     64  0000 ????						; they defaut to the TIA_BASE_ADDRESS.
+     65  0000 ????				      IFNCONST	TIA_BASE_READ_ADDRESS
+     66  0000 ????	       00 00	   TIA_BASE_READ_ADDRESS =	TIA_BASE_ADDRESS
+     67  0000 ????				      ENDIF
+     68  0000 ????				      IFNCONST	TIA_BASE_WRITE_ADDRESS
+     69  0000 ????	       00 00	   TIA_BASE_WRITE_ADDRESS =	TIA_BASE_ADDRESS
+     70  0000 ????				      ENDIF
+     71  0000 ????						;-------------------------------------------------------------------------------
+     72 U0000 ????				      SEG.U	TIA_REGISTERS_WRITE
+     73 U0000					      ORG	TIA_BASE_WRITE_ADDRESS
+     74 U0000							; DO NOT CHANGE THE RELATIVE ORDERING OF REGISTERS!
+     75 U0000
+     76 U0000		       00	   VSYNC      ds	1	; $00	 0000 00x0   Vertical Sync Set-Clear
+     77 U0001		       00	   VBLANK     ds	1	; $01	 xx00 00x0   Vertical Blank Set-Clear
+     78 U0002		       00	   WSYNC      ds	1	; $02	 ---- ----   Wait for Horizontal Blank
+     79 U0003		       00	   RSYNC      ds	1	; $03	 ---- ----   Reset Horizontal Sync Counter
+     80 U0004		       00	   NUSIZ0     ds	1	; $04	 00xx 0xxx   Number-Size player/missle 0
+     81 U0005		       00	   NUSIZ1     ds	1	; $05	 00xx 0xxx   Number-Size player/missle 1
+     82 U0006		       00	   COLUP0     ds	1	; $06	 xxxx xxx0   Color-Luminance Player 0
+     83 U0007		       00	   COLUP1     ds	1	; $07	 xxxx xxx0   Color-Luminance Player 1
+     84 U0008		       00	   COLUPF     ds	1	; $08	 xxxx xxx0   Color-Luminance Playfield
+     85 U0009		       00	   COLUBK     ds	1	; $09	 xxxx xxx0   Color-Luminance Background
+     86 U000a		       00	   CTRLPF     ds	1	; $0A	 00xx 0xxx   Control Playfield, Ball, Collisions
+     87 U000b		       00	   REFP0      ds	1	; $0B	 0000 x000   Reflection Player 0
+     88 U000c		       00	   REFP1      ds	1	; $0C	 0000 x000   Reflection Player 1
+     89 U000d		       00	   PF0	      ds	1	; $0D	 xxxx 0000   Playfield Register Byte 0
+     90 U000e		       00	   PF1	      ds	1	; $0E	 xxxx xxxx   Playfield Register Byte 1
+     91 U000f		       00	   PF2	      ds	1	; $0F	 xxxx xxxx   Playfield Register Byte 2
+     92 U0010		       00	   RESP0      ds	1	; $10	 ---- ----   Reset Player 0
+     93 U0011		       00	   RESP1      ds	1	; $11	 ---- ----   Reset Player 1
+     94 U0012		       00	   RESM0      ds	1	; $12	 ---- ----   Reset Missle 0
+     95 U0013		       00	   RESM1      ds	1	; $13	 ---- ----   Reset Missle 1
+     96 U0014		       00	   RESBL      ds	1	; $14	 ---- ----   Reset Ball
+     97 U0015		       00	   AUDC0      ds	1	; $15	 0000 xxxx   Audio Control 0
+     98 U0016		       00	   AUDC1      ds	1	; $16	 0000 xxxx   Audio Control 1
+     99 U0017		       00	   AUDF0      ds	1	; $17	 000x xxxx   Audio Frequency 0
+    100 U0018		       00	   AUDF1      ds	1	; $18	 000x xxxx   Audio Frequency 1
+    101 U0019		       00	   AUDV0      ds	1	; $19	 0000 xxxx   Audio Volume 0
+    102 U001a		       00	   AUDV1      ds	1	; $1A	 0000 xxxx   Audio Volume 1
+    103 U001b		       00	   GRP0       ds	1	; $1B	 xxxx xxxx   Graphics Register Player 0
+    104 U001c		       00	   GRP1       ds	1	; $1C	 xxxx xxxx   Graphics Register Player 1
+    105 U001d		       00	   ENAM0      ds	1	; $1D	 0000 00x0   Graphics Enable Missle 0
+    106 U001e		       00	   ENAM1      ds	1	; $1E	 0000 00x0   Graphics Enable Missle 1
+    107 U001f		       00	   ENABL      ds	1	; $1F	 0000 00x0   Graphics Enable Ball
+    108 U0020		       00	   HMP0       ds	1	; $20	 xxxx 0000   Horizontal Motion Player 0
+    109 U0021		       00	   HMP1       ds	1	; $21	 xxxx 0000   Horizontal Motion Player 1
+    110 U0022		       00	   HMM0       ds	1	; $22	 xxxx 0000   Horizontal Motion Missle 0
+    111 U0023		       00	   HMM1       ds	1	; $23	 xxxx 0000   Horizontal Motion Missle 1
+    112 U0024		       00	   HMBL       ds	1	; $24	 xxxx 0000   Horizontal Motion Ball
+    113 U0025		       00	   VDELP0     ds	1	; $25	 0000 000x   Vertical Delay Player 0
+    114 U0026		       00	   VDELP1     ds	1	; $26	 0000 000x   Vertical Delay Player 1
+    115 U0027		       00	   VDELBL     ds	1	; $27	 0000 000x   Vertical Delay Ball
+    116 U0028		       00	   RESMP0     ds	1	; $28	 0000 00x0   Reset Missle 0 to Player 0
+    117 U0029		       00	   RESMP1     ds	1	; $29	 0000 00x0   Reset Missle 1 to Player 1
+    118 U002a		       00	   HMOVE      ds	1	; $2A	 ---- ----   Apply Horizontal Motion
+    119 U002b		       00	   HMCLR      ds	1	; $2B	 ---- ----   Clear Horizontal Move Registers
+    120 U002c		       00	   CXCLR      ds	1	; $2C	 ---- ----   Clear Collision Latches
+    121 U002d
+    122 U002d							;-------------------------------------------------------------------------------
+    123 U0000 ????				      SEG.U	TIA_REGISTERS_READ
+    124 U0000					      ORG	TIA_BASE_READ_ADDRESS
+    125 U0000							;											bit 7	 bit 6
+    126 U0000		       00	   CXM0P      ds	1	; $00	     xx00 0000	     Read Collision  M0-P1   M0-P0
+    127 U0001		       00	   CXM1P      ds	1	; $01	     xx00 0000			     M1-P0   M1-P1
+    128 U0002		       00	   CXP0FB     ds	1	; $02	     xx00 0000			     P0-PF   P0-BL
+    129 U0003		       00	   CXP1FB     ds	1	; $03	     xx00 0000			     P1-PF   P1-BL
+    130 U0004		       00	   CXM0FB     ds	1	; $04	     xx00 0000			     M0-PF   M0-BL
+    131 U0005		       00	   CXM1FB     ds	1	; $05	     xx00 0000			     M1-PF   M1-BL
+    132 U0006		       00	   CXBLPF     ds	1	; $06	     x000 0000			     BL-PF   -----
+    133 U0007		       00	   CXPPMM     ds	1	; $07	     xx00 0000			     P0-P1   M0-M1
+    134 U0008		       00	   INPT0      ds	1	; $08	     x000 0000	     Read Pot Port 0
+    135 U0009		       00	   INPT1      ds	1	; $09	     x000 0000	     Read Pot Port 1
+    136 U000a		       00	   INPT2      ds	1	; $0A	     x000 0000	     Read Pot Port 2
+    137 U000b		       00	   INPT3      ds	1	; $0B	     x000 0000	     Read Pot Port 3
+    138 U000c		       00	   INPT4      ds	1	; $0C		x000 0000	 Read Input (Trigger) 0
+    139 U000d		       00	   INPT5      ds	1	; $0D		x000 0000	 Read Input (Trigger) 1
+    140 U000e							;-------------------------------------------------------------------------------
+    141 U0000 ????				      SEG.U	RIOT
+    142 U0280					      ORG	$280
+    143 U0280
+    144 U0280							; RIOT MEMORY MAP
+    145 U0280		       00	   SWCHA      ds	1	; $280      Port A data register for joysticks:
+    146 U0281							;			Bits 4-7 for player 1.  Bits 0-3 for player 2.
+    147 U0281		       00	   SWACNT     ds	1	; $281      Port A data direction register (DDR)
+    148 U0282		       00	   SWCHB      ds	1	; $282		Port B data (console switches)
+    149 U0283		       00	   SWBCNT     ds	1	; $283      Port B DDR
+    150 U0284		       00	   INTIM      ds	1	; $284		Timer output
+    151 U0285		       00	   TIMINT     ds	1	; $285
+    152 U0286							; Unused/undefined registers ($285-$294)
+    153 U0286		       00		      ds	1	; $286
+    154 U0287		       00		      ds	1	; $287
+    155 U0288		       00		      ds	1	; $288
+    156 U0289		       00		      ds	1	; $289
+    157 U028a		       00		      ds	1	; $28A
+    158 U028b		       00		      ds	1	; $28B
+    159 U028c		       00		      ds	1	; $28C
+    160 U028d		       00		      ds	1	; $28D
+    161 U028e		       00		      ds	1	; $28E
+    162 U028f		       00		      ds	1	; $28F
+    163 U0290		       00		      ds	1	; $290
+    164 U0291		       00		      ds	1	; $291
+    165 U0292		       00		      ds	1	; $292
+    166 U0293		       00		      ds	1	; $293
+    167 U0294		       00	   TIM1T      ds	1	; $294		set 1 clock interval
+    168 U0295		       00	   TIM8T      ds	1	; $295      set 8 clock interval
+    169 U0296		       00	   TIM64T     ds	1	; $296      set 64 clock interval
+    170 U0297		       00	   T1024T     ds	1	; $297      set 1024 clock interval
+    171 U0298							;-------------------------------------------------------------------------------
+    172 U0298							; The following required for back-compatibility with code which does not use
+    173 U0298							; segments.
+    174  0000 ????				      SEG
+    175  0000 ????						; EOF
+------- FILE kernel.asm
+      5  0000 ????
+------- FILE macro.h LEVEL 2 PASS 1
+      0  0000 ????				      include	"macro.h"
+      1  0000 ????						; MACRO.H
+      2  0000 ????						; Version 1.06, 3/SEPTEMBER/2004
+      3  0000 ????
+      4  0000 ????	       00 6a	   VERSION_MACRO =	106
+      5  0000 ????
+      6  0000 ????						;
+      7  0000 ????						; THIS FILE IS EXPLICITLY SUPPORTED AS A DASM-PREFERRED COMPANION FILE
+      8  0000 ????						; PLEASE DO *NOT* REDISTRIBUTE MODIFIED VERSIONS OF THIS FILE!
+      9  0000 ????						;
+     10  0000 ????						; This file defines DASM macros useful for development for the Atari 2600.
+     11  0000 ????						; It is distributed as a companion machine-specific support package
+     12  0000 ????						; for the DASM compiler. Updates to this file, DASM, and associated tools are
+     13  0000 ????						; available at at http://www.atari2600.org/dasm
+     14  0000 ????						;
+     15  0000 ????						; Many thanks to the people who have contributed.  If you take issue with the
+     16  0000 ????						; contents, or would like to add something, please write to me
+     17  0000 ????						; (atari2600@taswegian.com) with your contribution.
+     18  0000 ????						;
+     19  0000 ????						; Latest Revisions...
+     20  0000 ????						;
+     21  0000 ????						; 1.06  03/SEP/2004	 - nice revision of VERTICAL_BLANK (Edwin Blink)
+     22  0000 ????						; 1.05  14/NOV/2003	 - Added VERSION_MACRO equate (which will reflect 100x version #)
+     23  0000 ????						;			   This will allow conditional code to verify MACRO.H being
+     24  0000 ????						;			   used for code assembly.
+     25  0000 ????						; 1.04  13/NOV/2003	 - SET_POINTER macro added (16-bit address load)
+     26  0000 ????						;
+     27  0000 ????						; 1.03  23/JUN/2003	 - CLEAN_START macro added - clears TIA, RAM, registers
+     28  0000 ????						;
+     29  0000 ????						; 1.02  14/JUN/2003	 - VERTICAL_SYNC macro added
+     30  0000 ????						;			   (standardised macro for vertical synch code)
+     31  0000 ????						; 1.01  22/MAR/2003	 - SLEEP macro added.
+     32  0000 ????						;			 - NO_ILLEGAL_OPCODES switch implemented
+     33  0000 ????						; 1.0	22/MAR/2003		Initial release
+     34  0000 ????
+     35  0000 ????						; Note: These macros use illegal opcodes.  To disable illegal opcode usage,
+     36  0000 ????						;   define the symbol NO_ILLEGAL_OPCODES (-DNO_ILLEGAL_OPCODES=1 on command-line).
+     37  0000 ????						;   If you do not allow illegal opcode usage, you must include this file
+     38  0000 ????						;   *after* including VCS.H (as the non-illegal opcodes access hardware
+     39  0000 ????						;   registers and require them to be defined first).
+     40  0000 ????
+     41  0000 ????						; Available macros...
+     42  0000 ????						;   SLEEP n		 - sleep for n cycles
+     43  0000 ????						;   VERTICAL_SYNC	 - correct 3 scanline vertical synch code
+     44  0000 ????						;   CLEAN_START	 - set machine to known state on startup
+     45  0000 ????						;   SET_POINTER	 - load a 16-bit absolute to a 16-bit variable
+     46  0000 ????
+     47  0000 ????						;-------------------------------------------------------------------------------
+     48  0000 ????						; SLEEP duration
+     49  0000 ????						; Original author: Thomas Jentzsch
+     50  0000 ????						; Inserts code which takes the specified number of cycles to execute.	This is
+     51  0000 ????						; useful for code where precise timing is required.
+     52  0000 ????						; ILLEGAL-OPCODE VERSION DOES NOT AFFECT FLAGS OR REGISTERS.
+     53  0000 ????						; LEGAL OPCODE VERSION MAY AFFECT FLAGS
+     54  0000 ????						; Uses illegal opcode (DASM 2.20.01 onwards).
+     55  0000 ????
+     56  0000 ????				      MAC	sleep
+     57  0000 ????			   .CYCLES    SET	{1}
+     58  0000 ????
+     59  0000 ????				      IF	.CYCLES < 2
+     60  0000 ????				      ECHO	"MACRO ERROR: 'SLEEP': Duration must be > 1"
+     61  0000 ????				      ERR
+     62  0000 ????				      ENDIF
+     63  0000 ????
+     64  0000 ????				      IF	.CYCLES & 1
+     65  0000 ????				      IFNCONST	NO_ILLEGAL_OPCODES
+     66  0000 ????				      nop	0
+     67  0000 ????				      ELSE
+     68  0000 ????				      bit	VSYNC
+     69  0000 ????				      ENDIF
+     70  0000 ????			   .CYCLES    SET	.CYCLES - 3
+     71  0000 ????				      ENDIF
+     72  0000 ????
+     73  0000 ????				      REPEAT	.CYCLES / 2
+     74  0000 ????				      nop
+     75  0000 ????				      REPEND
+     76  0000 ????				      ENDM		;usage: SLEEP n (n>1)
+     77  0000 ????
+     78  0000 ????						;-------------------------------------------------------------------------------
+     79  0000 ????						; VERTICAL_SYNC
+     80  0000 ????						; revised version by Edwin Blink -- saves bytes!
+     81  0000 ????						; Inserts the code required for a proper 3 scanline vertical sync sequence
+     82  0000 ????						; Note: Alters the accumulator
+     83  0000 ????
+     84  0000 ????						; OUT: A = 0
+     85  0000 ????
+     86  0000 ????				      MAC	vertical_sync
+     87  0000 ????				      lda	#%1110	; each '1' bits generate a VSYNC ON line (bits 1..3)
+     88  0000 ????			   .VSLP1     sta	WSYNC	; 1st '0' bit resets Vsync, 2nd '0' bit exit loop
+     89  0000 ????				      sta	VSYNC
+     90  0000 ????				      lsr
+     91  0000 ????				      bne	.VSLP1	; branch until VYSNC has been reset
+     92  0000 ????				      ENDM
+     93  0000 ????
+     94  0000 ????						;-------------------------------------------------------------------------------
+     95  0000 ????						; CLEAN_START
+     96  0000 ????						; Original author: Andrew Davie
+     97  0000 ????						; Standardised start-up code, clears stack, all TIA registers and RAM to 0
+     98  0000 ????						; Sets stack pointer to $FF, and all registers to 0
+     99  0000 ????						; Sets decimal mode off, sets interrupt flag (kind of un-necessary)
+    100  0000 ????						; Use as very first section of code on boot (ie: at reset)
+    101  0000 ????						; Code written to minimise total ROM usage - uses weird 6502 knowledge :)
+    102  0000 ????
+    103  0000 ????				      MAC	clean_start
+    104  0000 ????				      sei
+    105  0000 ????				      cld
+    106  0000 ????
+    107  0000 ????				      ldx	#0
+    108  0000 ????				      txa
+    109  0000 ????				      tay
+    110  0000 ????			   .CLEAR_STACK dex
+    111  0000 ????				      txs
+    112  0000 ????				      pha
+    113  0000 ????				      bne	.CLEAR_STACK	; SP=$FF, X = A = Y = 0
+    114  0000 ????
+    115  0000 ????				      ENDM
+    116  0000 ????
+    117  0000 ????						;-------------------------------------------------------
+    118  0000 ????						; SET_POINTER
+    119  0000 ????						; Original author: Manuel Rotschkar
+    120  0000 ????						;
+    121  0000 ????						; Sets a 2 byte RAM pointer to an absolute address.
+    122  0000 ????						;
+    123  0000 ????						; Usage: SET_POINTER pointer, address
+    124  0000 ????						; Example: SET_POINTER SpritePTR, SpriteData
+    125  0000 ????						;
+    126  0000 ????						; Note: Alters the accumulator, NZ flags
+    127  0000 ????						; IN 1: 2 byte RAM location reserved for pointer
+    128  0000 ????						; IN 2: absolute address
+    129  0000 ????
+    130  0000 ????				      MAC	set_pointer
+    131  0000 ????			   .POINTER   SET	{1}
+    132  0000 ????			   .ADDRESS   SET	{2}
+    133  0000 ????
+    134  0000 ????				      LDA	#<.ADDRESS	; Get Lowbyte of Address
+    135  0000 ????				      STA	.POINTER	; Store in pointer
+    136  0000 ????				      LDA	#>.ADDRESS	; Get Hibyte of Address
+    137  0000 ????				      STA	.POINTER+1	; Store in pointer+1
+    138  0000 ????
+    139  0000 ????				      ENDM
+    140  0000 ????
+    141  0000 ????						;-------------------------------------------------------
+    142  0000 ????						; BOUNDARY byte#
+    143  0000 ????						; Original author: Denis Debro (borrowed from Bob Smith / Thomas)
+    144  0000 ????						;
+    145  0000 ????						; Push data to a certain position inside a page and keep count of how
+    146  0000 ????						; many free bytes the programmer will have.
+    147  0000 ????						;
+    148  0000 ????						; eg: BOUNDARY 5    ; position at byte #5 in page
+    149  0000 ????
+    150  0000 ????			   .FREE_BYTES SET	0
+    151  0000 ????				      MAC	boundary
+    152  0000 ????				      REPEAT	256
+    153  0000 ????				      IF	<. % {1} = 0
+    154  0000 ????				      MEXIT
+    155  0000 ????				      ELSE
+    156  0000 ????			   .FREE_BYTES SET	.FREE_BYTES + 1
+    157  0000 ????				      .byte	$00
+    158  0000 ????				      ENDIF
+    159  0000 ????				      REPEND
+    160  0000 ????				      ENDM
+    161  0000 ????
+    162  0000 ????
+    163  0000 ????						; EOF
+------- FILE kernel.asm
+      7  0000 ????
+      8  0000 ????
+      9  0000 ????
+     10  0000 ????				      SEG
+     11  0000 ????
+     12  f000					      ORG	$F000
+     13  f000
+     14  f000
+     15  f000
+     16  f000				   Reset
+     17  f000
+     18  f000				   StartOfFrame
+     19  f000
+     20  f000
+     21  f000
+     22  f000							; Start of vertical blank processing
+     23  f000
+     24  f000
+     25  f000
+     26  f000		       a9 00		      lda	#0
+     27  f002
+     28  f002		       85 01		      sta	VBLANK
+     29  f004
+     30  f004
+     31  f004
+     32  f004		       a9 02		      lda	#2
+     33  f006
+     34  f006		       85 00		      sta	VSYNC
+     35  f008
+     36  f008
+     37  f008
+     38  f008							; 3 scanlines of VSYNCH signal...
+     39  f008
+     40  f008
+     41  f008
+     42  f008		       85 02		      sta	WSYNC
+     43  f00a
+     44  f00a		       85 02		      sta	WSYNC
+     45  f00c
+     46  f00c		       85 02		      sta	WSYNC
+     47  f00e
+     48  f00e
+     49  f00e
+     50  f00e		       a9 00		      lda	#0
+     51  f010
+     52  f010		       85 00		      sta	VSYNC
+     53  f012
+     54  f012
+     55  f012
+     56  f012							; 37 scanlines of vertical blank...
+     57  f012
+     58  f012
+     59  f012
+     60  f012		       85 02		      sta	WSYNC
+     61  f014
+     62  f014		       85 02		      sta	WSYNC
+     63  f016
+     64  f016		       85 02		      sta	WSYNC
+     65  f018
+     66  f018		       85 02		      sta	WSYNC
+     67  f01a
+     68  f01a		       85 02		      sta	WSYNC
+     69  f01c
+     70  f01c		       85 02		      sta	WSYNC
+     71  f01e
+     72  f01e		       85 02		      sta	WSYNC
+     73  f020
+     74  f020		       85 02		      sta	WSYNC
+     75  f022
+     76  f022		       85 02		      sta	WSYNC
+     77  f024
+     78  f024		       85 02		      sta	WSYNC
+     79  f026
+     80  f026		       85 02		      sta	WSYNC
+     81  f028
+     82  f028		       85 02		      sta	WSYNC
+     83  f02a
+     84  f02a		       85 02		      sta	WSYNC
+     85  f02c
+     86  f02c		       85 02		      sta	WSYNC
+     87  f02e
+     88  f02e		       85 02		      sta	WSYNC
+     89  f030
+     90  f030		       85 02		      sta	WSYNC
+     91  f032
+     92  f032		       85 02		      sta	WSYNC
+     93  f034
+     94  f034		       85 02		      sta	WSYNC
+     95  f036
+     96  f036		       85 02		      sta	WSYNC
+     97  f038
+     98  f038		       85 02		      sta	WSYNC
+     99  f03a
+    100  f03a		       85 02		      sta	WSYNC
+    101  f03c
+    102  f03c		       85 02		      sta	WSYNC
+    103  f03e
+    104  f03e		       85 02		      sta	WSYNC
+    105  f040
+    106  f040		       85 02		      sta	WSYNC
+    107  f042
+    108  f042		       85 02		      sta	WSYNC
+    109  f044
+    110  f044		       85 02		      sta	WSYNC
+    111  f046
+    112  f046		       85 02		      sta	WSYNC
+    113  f048
+    114  f048		       85 02		      sta	WSYNC
+    115  f04a
+    116  f04a		       85 02		      sta	WSYNC
+    117  f04c
+    118  f04c		       85 02		      sta	WSYNC
+    119  f04e
+    120  f04e		       85 02		      sta	WSYNC
+    121  f050
+    122  f050		       85 02		      sta	WSYNC
+    123  f052
+    124  f052		       85 02		      sta	WSYNC
+    125  f054
+    126  f054		       85 02		      sta	WSYNC
+    127  f056
+    128  f056		       85 02		      sta	WSYNC
+    129  f058
+    130  f058		       85 02		      sta	WSYNC
+    131  f05a
+    132  f05a		       85 02		      sta	WSYNC
+    133  f05c
+    134  f05c
+    135  f05c
+    136  f05c
+    137  f05c
+    138  f05c
+    139  f05c
+    140  f05c							; 192 scanlines of picture...
+    141  f05c
+    142  f05c
+    143  f05c
+    144  f05c		       a2 00		      ldx	#0
+    145  f05e		       a0 00		      ldy	#0
+    146  f060
+    147  f060					      REPEAT	192	; scanlines
+    148  f060
+    149  f060		       ea		      nop
+    150  f061		       ea		      nop
+    151  f062		       ea		      nop
+    152  f063		       ea		      nop
+    153  f064		       ea		      nop
+    154  f065		       ea		      nop
+    155  f066		       ea		      nop
+    156  f067		       ea		      nop
+    157  f068		       ea		      nop
+    158  f069
+    159  f069		       e8		      inx
+    160  f06a
+    161  f06a		       86 09		      stx	COLUBK
+    162  f06c
+    163  f06c		       ea		      nop
+    164  f06d		       ea		      nop
+    165  f06e		       ea		      nop
+    166  f06f
+    167  f06f		       88		      dey
+    168  f070		       84 09		      sty	COLUBK
+    169  f072
+    170  f072		       85 02		      sta	WSYNC
+    171  f074
+    172  f074
+    173  f074
+    147  f074					      REPEND
+    148  f074
+    149  f074		       ea		      nop
+    150  f075		       ea		      nop
+    151  f076		       ea		      nop
+    152  f077		       ea		      nop
+    153  f078		       ea		      nop
+    154  f079		       ea		      nop
+    155  f07a		       ea		      nop
+    156  f07b		       ea		      nop
+    157  f07c		       ea		      nop
+    158  f07d
+    159  f07d		       e8		      inx
+    160  f07e
+    161  f07e		       86 09		      stx	COLUBK
+    162  f080
+    163  f080		       ea		      nop
+    164  f081		       ea		      nop
+    165  f082		       ea		      nop
+    166  f083
+    167  f083		       88		      dey
+    168  f084		       84 09		      sty	COLUBK
+    169  f086
+    170  f086		       85 02		      sta	WSYNC
+    171  f088
+    172  f088
+    173  f088
+    147  f088					      REPEND
+    148  f088
+    149  f088		       ea		      nop
+    150  f089		       ea		      nop
+    151  f08a		       ea		      nop
+    152  f08b		       ea		      nop
+    153  f08c		       ea		      nop
+    154  f08d		       ea		      nop
+    155  f08e		       ea		      nop
+    156  f08f		       ea		      nop
+    157  f090		       ea		      nop
+    158  f091
+    159  f091		       e8		      inx
+    160  f092
+    161  f092		       86 09		      stx	COLUBK
+    162  f094
+    163  f094		       ea		      nop
+    164  f095		       ea		      nop
+    165  f096		       ea		      nop
+    166  f097
+    167  f097		       88		      dey
+    168  f098		       84 09		      sty	COLUBK
+    169  f09a
+    170  f09a		       85 02		      sta	WSYNC
+    171  f09c
+    172  f09c
+    173  f09c
+    147  f09c					      REPEND
+    148  f09c
+    149  f09c		       ea		      nop
+    150  f09d		       ea		      nop
+    151  f09e		       ea		      nop
+    152  f09f		       ea		      nop
+    153  f0a0		       ea		      nop
+    154  f0a1		       ea		      nop
+    155  f0a2		       ea		      nop
+    156  f0a3		       ea		      nop
+    157  f0a4		       ea		      nop
+    158  f0a5
+    159  f0a5		       e8		      inx
+    160  f0a6
+    161  f0a6		       86 09		      stx	COLUBK
+    162  f0a8
+    163  f0a8		       ea		      nop
+    164  f0a9		       ea		      nop
+    165  f0aa		       ea		      nop
+    166  f0ab
+    167  f0ab		       88		      dey
+    168  f0ac		       84 09		      sty	COLUBK
+    169  f0ae
+    170  f0ae		       85 02		      sta	WSYNC
+    171  f0b0
+    172  f0b0
+    173  f0b0
+    147  f0b0					      REPEND
+    148  f0b0
+    149  f0b0		       ea		      nop
+    150  f0b1		       ea		      nop
+    151  f0b2		       ea		      nop
+    152  f0b3		       ea		      nop
+    153  f0b4		       ea		      nop
+    154  f0b5		       ea		      nop
+    155  f0b6		       ea		      nop
+    156  f0b7		       ea		      nop
+    157  f0b8		       ea		      nop
+    158  f0b9
+    159  f0b9		       e8		      inx
+    160  f0ba
+    161  f0ba		       86 09		      stx	COLUBK
+    162  f0bc
+    163  f0bc		       ea		      nop
+    164  f0bd		       ea		      nop
+    165  f0be		       ea		      nop
+    166  f0bf
+    167  f0bf		       88		      dey
+    168  f0c0		       84 09		      sty	COLUBK
+    169  f0c2
+    170  f0c2		       85 02		      sta	WSYNC
+    171  f0c4
+    172  f0c4
+    173  f0c4
+    147  f0c4					      REPEND
+    148  f0c4
+    149  f0c4		       ea		      nop
+    150  f0c5		       ea		      nop
+    151  f0c6		       ea		      nop
+    152  f0c7		       ea		      nop
+    153  f0c8		       ea		      nop
+    154  f0c9		       ea		      nop
+    155  f0ca		       ea		      nop
+    156  f0cb		       ea		      nop
+    157  f0cc		       ea		      nop
+    158  f0cd
+    159  f0cd		       e8		      inx
+    160  f0ce
+    161  f0ce		       86 09		      stx	COLUBK
+    162  f0d0
+    163  f0d0		       ea		      nop
+    164  f0d1		       ea		      nop
+    165  f0d2		       ea		      nop
+    166  f0d3
+    167  f0d3		       88		      dey
+    168  f0d4		       84 09		      sty	COLUBK
+    169  f0d6
+    170  f0d6		       85 02		      sta	WSYNC
+    171  f0d8
+    172  f0d8
+    173  f0d8
+    147  f0d8					      REPEND
+    148  f0d8
+    149  f0d8		       ea		      nop
+    150  f0d9		       ea		      nop
+    151  f0da		       ea		      nop
+    152  f0db		       ea		      nop
+    153  f0dc		       ea		      nop
+    154  f0dd		       ea		      nop
+    155  f0de		       ea		      nop
+    156  f0df		       ea		      nop
+    157  f0e0		       ea		      nop
+    158  f0e1
+    159  f0e1		       e8		      inx
+    160  f0e2
+    161  f0e2		       86 09		      stx	COLUBK
+    162  f0e4
+    163  f0e4		       ea		      nop
+    164  f0e5		       ea		      nop
+    165  f0e6		       ea		      nop
+    166  f0e7
+    167  f0e7		       88		      dey
+    168  f0e8		       84 09		      sty	COLUBK
+    169  f0ea
+    170  f0ea		       85 02		      sta	WSYNC
+    171  f0ec
+    172  f0ec
+    173  f0ec
+    147  f0ec					      REPEND
+    148  f0ec
+    149  f0ec		       ea		      nop
+    150  f0ed		       ea		      nop
+    151  f0ee		       ea		      nop
+    152  f0ef		       ea		      nop
+    153  f0f0		       ea		      nop
+    154  f0f1		       ea		      nop
+    155  f0f2		       ea		      nop
+    156  f0f3		       ea		      nop
+    157  f0f4		       ea		      nop
+    158  f0f5
+    159  f0f5		       e8		      inx
+    160  f0f6
+    161  f0f6		       86 09		      stx	COLUBK
+    162  f0f8
+    163  f0f8		       ea		      nop
+    164  f0f9		       ea		      nop
+    165  f0fa		       ea		      nop
+    166  f0fb
+    167  f0fb		       88		      dey
+    168  f0fc		       84 09		      sty	COLUBK
+    169  f0fe
+    170  f0fe		       85 02		      sta	WSYNC
+    171  f100
+    172  f100
+    173  f100
+    147  f100					      REPEND
+    148  f100
+    149  f100		       ea		      nop
+    150  f101		       ea		      nop
+    151  f102		       ea		      nop
+    152  f103		       ea		      nop
+    153  f104		       ea		      nop
+    154  f105		       ea		      nop
+    155  f106		       ea		      nop
+    156  f107		       ea		      nop
+    157  f108		       ea		      nop
+    158  f109
+    159  f109		       e8		      inx
+    160  f10a
+    161  f10a		       86 09		      stx	COLUBK
+    162  f10c
+    163  f10c		       ea		      nop
+    164  f10d		       ea		      nop
+    165  f10e		       ea		      nop
+    166  f10f
+    167  f10f		       88		      dey
+    168  f110		       84 09		      sty	COLUBK
+    169  f112
+    170  f112		       85 02		      sta	WSYNC
+    171  f114
+    172  f114
+    173  f114
+    147  f114					      REPEND
+    148  f114
+    149  f114		       ea		      nop
+    150  f115		       ea		      nop
+    151  f116		       ea		      nop
+    152  f117		       ea		      nop
+    153  f118		       ea		      nop
+    154  f119		       ea		      nop
+    155  f11a		       ea		      nop
+    156  f11b		       ea		      nop
+    157  f11c		       ea		      nop
+    158  f11d
+    159  f11d		       e8		      inx
+    160  f11e
+    161  f11e		       86 09		      stx	COLUBK
+    162  f120
+    163  f120		       ea		      nop
+    164  f121		       ea		      nop
+    165  f122		       ea		      nop
+    166  f123
+    167  f123		       88		      dey
+    168  f124		       84 09		      sty	COLUBK
+    169  f126
+    170  f126		       85 02		      sta	WSYNC
+    171  f128
+    172  f128
+    173  f128
+    147  f128					      REPEND
+    148  f128
+    149  f128		       ea		      nop
+    150  f129		       ea		      nop
+    151  f12a		       ea		      nop
+    152  f12b		       ea		      nop
+    153  f12c		       ea		      nop
+    154  f12d		       ea		      nop
+    155  f12e		       ea		      nop
+    156  f12f		       ea		      nop
+    157  f130		       ea		      nop
+    158  f131
+    159  f131		       e8		      inx
+    160  f132
+    161  f132		       86 09		      stx	COLUBK
+    162  f134
+    163  f134		       ea		      nop
+    164  f135		       ea		      nop
+    165  f136		       ea		      nop
+    166  f137
+    167  f137		       88		      dey
+    168  f138		       84 09		      sty	COLUBK
+    169  f13a
+    170  f13a		       85 02		      sta	WSYNC
+    171  f13c
+    172  f13c
+    173  f13c
+    147  f13c					      REPEND
+    148  f13c
+    149  f13c		       ea		      nop
+    150  f13d		       ea		      nop
+    151  f13e		       ea		      nop
+    152  f13f		       ea		      nop
+    153  f140		       ea		      nop
+    154  f141		       ea		      nop
+    155  f142		       ea		      nop
+    156  f143		       ea		      nop
+    157  f144		       ea		      nop
+    158  f145
+    159  f145		       e8		      inx
+    160  f146
+    161  f146		       86 09		      stx	COLUBK
+    162  f148
+    163  f148		       ea		      nop
+    164  f149		       ea		      nop
+    165  f14a		       ea		      nop
+    166  f14b
+    167  f14b		       88		      dey
+    168  f14c		       84 09		      sty	COLUBK
+    169  f14e
+    170  f14e		       85 02		      sta	WSYNC
+    171  f150
+    172  f150
+    173  f150
+    147  f150					      REPEND
+    148  f150
+    149  f150		       ea		      nop
+    150  f151		       ea		      nop
+    151  f152		       ea		      nop
+    152  f153		       ea		      nop
+    153  f154		       ea		      nop
+    154  f155		       ea		      nop
+    155  f156		       ea		      nop
+    156  f157		       ea		      nop
+    157  f158		       ea		      nop
+    158  f159
+    159  f159		       e8		      inx
+    160  f15a
+    161  f15a		       86 09		      stx	COLUBK
+    162  f15c
+    163  f15c		       ea		      nop
+    164  f15d		       ea		      nop
+    165  f15e		       ea		      nop
+    166  f15f
+    167  f15f		       88		      dey
+    168  f160		       84 09		      sty	COLUBK
+    169  f162
+    170  f162		       85 02		      sta	WSYNC
+    171  f164
+    172  f164
+    173  f164
+    147  f164					      REPEND
+    148  f164
+    149  f164		       ea		      nop
+    150  f165		       ea		      nop
+    151  f166		       ea		      nop
+    152  f167		       ea		      nop
+    153  f168		       ea		      nop
+    154  f169		       ea		      nop
+    155  f16a		       ea		      nop
+    156  f16b		       ea		      nop
+    157  f16c		       ea		      nop
+    158  f16d
+    159  f16d		       e8		      inx
+    160  f16e
+    161  f16e		       86 09		      stx	COLUBK
+    162  f170
+    163  f170		       ea		      nop
+    164  f171		       ea		      nop
+    165  f172		       ea		      nop
+    166  f173
+    167  f173		       88		      dey
+    168  f174		       84 09		      sty	COLUBK
+    169  f176
+    170  f176		       85 02		      sta	WSYNC
+    171  f178
+    172  f178
+    173  f178
+    147  f178					      REPEND
+    148  f178
+    149  f178		       ea		      nop
+    150  f179		       ea		      nop
+    151  f17a		       ea		      nop
+    152  f17b		       ea		      nop
+    153  f17c		       ea		      nop
+    154  f17d		       ea		      nop
+    155  f17e		       ea		      nop
+    156  f17f		       ea		      nop
+    157  f180		       ea		      nop
+    158  f181
+    159  f181		       e8		      inx
+    160  f182
+    161  f182		       86 09		      stx	COLUBK
+    162  f184
+    163  f184		       ea		      nop
+    164  f185		       ea		      nop
+    165  f186		       ea		      nop
+    166  f187
+    167  f187		       88		      dey
+    168  f188		       84 09		      sty	COLUBK
+    169  f18a
+    170  f18a		       85 02		      sta	WSYNC
+    171  f18c
+    172  f18c
+    173  f18c
+    147  f18c					      REPEND
+    148  f18c
+    149  f18c		       ea		      nop
+    150  f18d		       ea		      nop
+    151  f18e		       ea		      nop
+    152  f18f		       ea		      nop
+    153  f190		       ea		      nop
+    154  f191		       ea		      nop
+    155  f192		       ea		      nop
+    156  f193		       ea		      nop
+    157  f194		       ea		      nop
+    158  f195
+    159  f195		       e8		      inx
+    160  f196
+    161  f196		       86 09		      stx	COLUBK
+    162  f198
+    163  f198		       ea		      nop
+    164  f199		       ea		      nop
+    165  f19a		       ea		      nop
+    166  f19b
+    167  f19b		       88		      dey
+    168  f19c		       84 09		      sty	COLUBK
+    169  f19e
+    170  f19e		       85 02		      sta	WSYNC
+    171  f1a0
+    172  f1a0
+    173  f1a0
+    147  f1a0					      REPEND
+    148  f1a0
+    149  f1a0		       ea		      nop
+    150  f1a1		       ea		      nop
+    151  f1a2		       ea		      nop
+    152  f1a3		       ea		      nop
+    153  f1a4		       ea		      nop
+    154  f1a5		       ea		      nop
+    155  f1a6		       ea		      nop
+    156  f1a7		       ea		      nop
+    157  f1a8		       ea		      nop
+    158  f1a9
+    159  f1a9		       e8		      inx
+    160  f1aa
+    161  f1aa		       86 09		      stx	COLUBK
+    162  f1ac
+    163  f1ac		       ea		      nop
+    164  f1ad		       ea		      nop
+    165  f1ae		       ea		      nop
+    166  f1af
+    167  f1af		       88		      dey
+    168  f1b0		       84 09		      sty	COLUBK
+    169  f1b2
+    170  f1b2		       85 02		      sta	WSYNC
+    171  f1b4
+    172  f1b4
+    173  f1b4
+    147  f1b4					      REPEND
+    148  f1b4
+    149  f1b4		       ea		      nop
+    150  f1b5		       ea		      nop
+    151  f1b6		       ea		      nop
+    152  f1b7		       ea		      nop
+    153  f1b8		       ea		      nop
+    154  f1b9		       ea		      nop
+    155  f1ba		       ea		      nop
+    156  f1bb		       ea		      nop
+    157  f1bc		       ea		      nop
+    158  f1bd
+    159  f1bd		       e8		      inx
+    160  f1be
+    161  f1be		       86 09		      stx	COLUBK
+    162  f1c0
+    163  f1c0		       ea		      nop
+    164  f1c1		       ea		      nop
+    165  f1c2		       ea		      nop
+    166  f1c3
+    167  f1c3		       88		      dey
+    168  f1c4		       84 09		      sty	COLUBK
+    169  f1c6
+    170  f1c6		       85 02		      sta	WSYNC
+    171  f1c8
+    172  f1c8
+    173  f1c8
+    147  f1c8					      REPEND
+    148  f1c8
+    149  f1c8		       ea		      nop
+    150  f1c9		       ea		      nop
+    151  f1ca		       ea		      nop
+    152  f1cb		       ea		      nop
+    153  f1cc		       ea		      nop
+    154  f1cd		       ea		      nop
+    155  f1ce		       ea		      nop
+    156  f1cf		       ea		      nop
+    157  f1d0		       ea		      nop
+    158  f1d1
+    159  f1d1		       e8		      inx
+    160  f1d2
+    161  f1d2		       86 09		      stx	COLUBK
+    162  f1d4
+    163  f1d4		       ea		      nop
+    164  f1d5		       ea		      nop
+    165  f1d6		       ea		      nop
+    166  f1d7
+    167  f1d7		       88		      dey
+    168  f1d8		       84 09		      sty	COLUBK
+    169  f1da
+    170  f1da		       85 02		      sta	WSYNC
+    171  f1dc
+    172  f1dc
+    173  f1dc
+    147  f1dc					      REPEND
+    148  f1dc
+    149  f1dc		       ea		      nop
+    150  f1dd		       ea		      nop
+    151  f1de		       ea		      nop
+    152  f1df		       ea		      nop
+    153  f1e0		       ea		      nop
+    154  f1e1		       ea		      nop
+    155  f1e2		       ea		      nop
+    156  f1e3		       ea		      nop
+    157  f1e4		       ea		      nop
+    158  f1e5
+    159  f1e5		       e8		      inx
+    160  f1e6
+    161  f1e6		       86 09		      stx	COLUBK
+    162  f1e8
+    163  f1e8		       ea		      nop
+    164  f1e9		       ea		      nop
+    165  f1ea		       ea		      nop
+    166  f1eb
+    167  f1eb		       88		      dey
+    168  f1ec		       84 09		      sty	COLUBK
+    169  f1ee
+    170  f1ee		       85 02		      sta	WSYNC
+    171  f1f0
+    172  f1f0
+    173  f1f0
+    147  f1f0					      REPEND
+    148  f1f0
+    149  f1f0		       ea		      nop
+    150  f1f1		       ea		      nop
+    151  f1f2		       ea		      nop
+    152  f1f3		       ea		      nop
+    153  f1f4		       ea		      nop
+    154  f1f5		       ea		      nop
+    155  f1f6		       ea		      nop
+    156  f1f7		       ea		      nop
+    157  f1f8		       ea		      nop
+    158  f1f9
+    159  f1f9		       e8		      inx
+    160  f1fa
+    161  f1fa		       86 09		      stx	COLUBK
+    162  f1fc
+    163  f1fc		       ea		      nop
+    164  f1fd		       ea		      nop
+    165  f1fe		       ea		      nop
+    166  f1ff
+    167  f1ff		       88		      dey
+    168  f200		       84 09		      sty	COLUBK
+    169  f202
+    170  f202		       85 02		      sta	WSYNC
+    171  f204
+    172  f204
+    173  f204
+    147  f204					      REPEND
+    148  f204
+    149  f204		       ea		      nop
+    150  f205		       ea		      nop
+    151  f206		       ea		      nop
+    152  f207		       ea		      nop
+    153  f208		       ea		      nop
+    154  f209		       ea		      nop
+    155  f20a		       ea		      nop
+    156  f20b		       ea		      nop
+    157  f20c		       ea		      nop
+    158  f20d
+    159  f20d		       e8		      inx
+    160  f20e
+    161  f20e		       86 09		      stx	COLUBK
+    162  f210
+    163  f210		       ea		      nop
+    164  f211		       ea		      nop
+    165  f212		       ea		      nop
+    166  f213
+    167  f213		       88		      dey
+    168  f214		       84 09		      sty	COLUBK
+    169  f216
+    170  f216		       85 02		      sta	WSYNC
+    171  f218
+    172  f218
+    173  f218
+    147  f218					      REPEND
+    148  f218
+    149  f218		       ea		      nop
+    150  f219		       ea		      nop
+    151  f21a		       ea		      nop
+    152  f21b		       ea		      nop
+    153  f21c		       ea		      nop
+    154  f21d		       ea		      nop
+    155  f21e		       ea		      nop
+    156  f21f		       ea		      nop
+    157  f220		       ea		      nop
+    158  f221
+    159  f221		       e8		      inx
+    160  f222
+    161  f222		       86 09		      stx	COLUBK
+    162  f224
+    163  f224		       ea		      nop
+    164  f225		       ea		      nop
+    165  f226		       ea		      nop
+    166  f227
+    167  f227		       88		      dey
+    168  f228		       84 09		      sty	COLUBK
+    169  f22a
+    170  f22a		       85 02		      sta	WSYNC
+    171  f22c
+    172  f22c
+    173  f22c
+    147  f22c					      REPEND
+    148  f22c
+    149  f22c		       ea		      nop
+    150  f22d		       ea		      nop
+    151  f22e		       ea		      nop
+    152  f22f		       ea		      nop
+    153  f230		       ea		      nop
+    154  f231		       ea		      nop
+    155  f232		       ea		      nop
+    156  f233		       ea		      nop
+    157  f234		       ea		      nop
+    158  f235
+    159  f235		       e8		      inx
+    160  f236
+    161  f236		       86 09		      stx	COLUBK
+    162  f238
+    163  f238		       ea		      nop
+    164  f239		       ea		      nop
+    165  f23a		       ea		      nop
+    166  f23b
+    167  f23b		       88		      dey
+    168  f23c		       84 09		      sty	COLUBK
+    169  f23e
+    170  f23e		       85 02		      sta	WSYNC
+    171  f240
+    172  f240
+    173  f240
+    147  f240					      REPEND
+    148  f240
+    149  f240		       ea		      nop
+    150  f241		       ea		      nop
+    151  f242		       ea		      nop
+    152  f243		       ea		      nop
+    153  f244		       ea		      nop
+    154  f245		       ea		      nop
+    155  f246		       ea		      nop
+    156  f247		       ea		      nop
+    157  f248		       ea		      nop
+    158  f249
+    159  f249		       e8		      inx
+    160  f24a
+    161  f24a		       86 09		      stx	COLUBK
+    162  f24c
+    163  f24c		       ea		      nop
+    164  f24d		       ea		      nop
+    165  f24e		       ea		      nop
+    166  f24f
+    167  f24f		       88		      dey
+    168  f250		       84 09		      sty	COLUBK
+    169  f252
+    170  f252		       85 02		      sta	WSYNC
+    171  f254
+    172  f254
+    173  f254
+    147  f254					      REPEND
+    148  f254
+    149  f254		       ea		      nop
+    150  f255		       ea		      nop
+    151  f256		       ea		      nop
+    152  f257		       ea		      nop
+    153  f258		       ea		      nop
+    154  f259		       ea		      nop
+    155  f25a		       ea		      nop
+    156  f25b		       ea		      nop
+    157  f25c		       ea		      nop
+    158  f25d
+    159  f25d		       e8		      inx
+    160  f25e
+    161  f25e		       86 09		      stx	COLUBK
+    162  f260
+    163  f260		       ea		      nop
+    164  f261		       ea		      nop
+    165  f262		       ea		      nop
+    166  f263
+    167  f263		       88		      dey
+    168  f264		       84 09		      sty	COLUBK
+    169  f266
+    170  f266		       85 02		      sta	WSYNC
+    171  f268
+    172  f268
+    173  f268
+    147  f268					      REPEND
+    148  f268
+    149  f268		       ea		      nop
+    150  f269		       ea		      nop
+    151  f26a		       ea		      nop
+    152  f26b		       ea		      nop
+    153  f26c		       ea		      nop
+    154  f26d		       ea		      nop
+    155  f26e		       ea		      nop
+    156  f26f		       ea		      nop
+    157  f270		       ea		      nop
+    158  f271
+    159  f271		       e8		      inx
+    160  f272
+    161  f272		       86 09		      stx	COLUBK
+    162  f274
+    163  f274		       ea		      nop
+    164  f275		       ea		      nop
+    165  f276		       ea		      nop
+    166  f277
+    167  f277		       88		      dey
+    168  f278		       84 09		      sty	COLUBK
+    169  f27a
+    170  f27a		       85 02		      sta	WSYNC
+    171  f27c
+    172  f27c
+    173  f27c
+    147  f27c					      REPEND
+    148  f27c
+    149  f27c		       ea		      nop
+    150  f27d		       ea		      nop
+    151  f27e		       ea		      nop
+    152  f27f		       ea		      nop
+    153  f280		       ea		      nop
+    154  f281		       ea		      nop
+    155  f282		       ea		      nop
+    156  f283		       ea		      nop
+    157  f284		       ea		      nop
+    158  f285
+    159  f285		       e8		      inx
+    160  f286
+    161  f286		       86 09		      stx	COLUBK
+    162  f288
+    163  f288		       ea		      nop
+    164  f289		       ea		      nop
+    165  f28a		       ea		      nop
+    166  f28b
+    167  f28b		       88		      dey
+    168  f28c		       84 09		      sty	COLUBK
+    169  f28e
+    170  f28e		       85 02		      sta	WSYNC
+    171  f290
+    172  f290
+    173  f290
+    147  f290					      REPEND
+    148  f290
+    149  f290		       ea		      nop
+    150  f291		       ea		      nop
+    151  f292		       ea		      nop
+    152  f293		       ea		      nop
+    153  f294		       ea		      nop
+    154  f295		       ea		      nop
+    155  f296		       ea		      nop
+    156  f297		       ea		      nop
+    157  f298		       ea		      nop
+    158  f299
+    159  f299		       e8		      inx
+    160  f29a
+    161  f29a		       86 09		      stx	COLUBK
+    162  f29c
+    163  f29c		       ea		      nop
+    164  f29d		       ea		      nop
+    165  f29e		       ea		      nop
+    166  f29f
+    167  f29f		       88		      dey
+    168  f2a0		       84 09		      sty	COLUBK
+    169  f2a2
+    170  f2a2		       85 02		      sta	WSYNC
+    171  f2a4
+    172  f2a4
+    173  f2a4
+    147  f2a4					      REPEND
+    148  f2a4
+    149  f2a4		       ea		      nop
+    150  f2a5		       ea		      nop
+    151  f2a6		       ea		      nop
+    152  f2a7		       ea		      nop
+    153  f2a8		       ea		      nop
+    154  f2a9		       ea		      nop
+    155  f2aa		       ea		      nop
+    156  f2ab		       ea		      nop
+    157  f2ac		       ea		      nop
+    158  f2ad
+    159  f2ad		       e8		      inx
+    160  f2ae
+    161  f2ae		       86 09		      stx	COLUBK
+    162  f2b0
+    163  f2b0		       ea		      nop
+    164  f2b1		       ea		      nop
+    165  f2b2		       ea		      nop
+    166  f2b3
+    167  f2b3		       88		      dey
+    168  f2b4		       84 09		      sty	COLUBK
+    169  f2b6
+    170  f2b6		       85 02		      sta	WSYNC
+    171  f2b8
+    172  f2b8
+    173  f2b8
+    147  f2b8					      REPEND
+    148  f2b8
+    149  f2b8		       ea		      nop
+    150  f2b9		       ea		      nop
+    151  f2ba		       ea		      nop
+    152  f2bb		       ea		      nop
+    153  f2bc		       ea		      nop
+    154  f2bd		       ea		      nop
+    155  f2be		       ea		      nop
+    156  f2bf		       ea		      nop
+    157  f2c0		       ea		      nop
+    158  f2c1
+    159  f2c1		       e8		      inx
+    160  f2c2
+    161  f2c2		       86 09		      stx	COLUBK
+    162  f2c4
+    163  f2c4		       ea		      nop
+    164  f2c5		       ea		      nop
+    165  f2c6		       ea		      nop
+    166  f2c7
+    167  f2c7		       88		      dey
+    168  f2c8		       84 09		      sty	COLUBK
+    169  f2ca
+    170  f2ca		       85 02		      sta	WSYNC
+    171  f2cc
+    172  f2cc
+    173  f2cc
+    147  f2cc					      REPEND
+    148  f2cc
+    149  f2cc		       ea		      nop
+    150  f2cd		       ea		      nop
+    151  f2ce		       ea		      nop
+    152  f2cf		       ea		      nop
+    153  f2d0		       ea		      nop
+    154  f2d1		       ea		      nop
+    155  f2d2		       ea		      nop
+    156  f2d3		       ea		      nop
+    157  f2d4		       ea		      nop
+    158  f2d5
+    159  f2d5		       e8		      inx
+    160  f2d6
+    161  f2d6		       86 09		      stx	COLUBK
+    162  f2d8
+    163  f2d8		       ea		      nop
+    164  f2d9		       ea		      nop
+    165  f2da		       ea		      nop
+    166  f2db
+    167  f2db		       88		      dey
+    168  f2dc		       84 09		      sty	COLUBK
+    169  f2de
+    170  f2de		       85 02		      sta	WSYNC
+    171  f2e0
+    172  f2e0
+    173  f2e0
+    147  f2e0					      REPEND
+    148  f2e0
+    149  f2e0		       ea		      nop
+    150  f2e1		       ea		      nop
+    151  f2e2		       ea		      nop
+    152  f2e3		       ea		      nop
+    153  f2e4		       ea		      nop
+    154  f2e5		       ea		      nop
+    155  f2e6		       ea		      nop
+    156  f2e7		       ea		      nop
+    157  f2e8		       ea		      nop
+    158  f2e9
+    159  f2e9		       e8		      inx
+    160  f2ea
+    161  f2ea		       86 09		      stx	COLUBK
+    162  f2ec
+    163  f2ec		       ea		      nop
+    164  f2ed		       ea		      nop
+    165  f2ee		       ea		      nop
+    166  f2ef
+    167  f2ef		       88		      dey
+    168  f2f0		       84 09		      sty	COLUBK
+    169  f2f2
+    170  f2f2		       85 02		      sta	WSYNC
+    171  f2f4
+    172  f2f4
+    173  f2f4
+    147  f2f4					      REPEND
+    148  f2f4
+    149  f2f4		       ea		      nop
+    150  f2f5		       ea		      nop
+    151  f2f6		       ea		      nop
+    152  f2f7		       ea		      nop
+    153  f2f8		       ea		      nop
+    154  f2f9		       ea		      nop
+    155  f2fa		       ea		      nop
+    156  f2fb		       ea		      nop
+    157  f2fc		       ea		      nop
+    158  f2fd
+    159  f2fd		       e8		      inx
+    160  f2fe
+    161  f2fe		       86 09		      stx	COLUBK
+    162  f300
+    163  f300		       ea		      nop
+    164  f301		       ea		      nop
+    165  f302		       ea		      nop
+    166  f303
+    167  f303		       88		      dey
+    168  f304		       84 09		      sty	COLUBK
+    169  f306
+    170  f306		       85 02		      sta	WSYNC
+    171  f308
+    172  f308
+    173  f308
+    147  f308					      REPEND
+    148  f308
+    149  f308		       ea		      nop
+    150  f309		       ea		      nop
+    151  f30a		       ea		      nop
+    152  f30b		       ea		      nop
+    153  f30c		       ea		      nop
+    154  f30d		       ea		      nop
+    155  f30e		       ea		      nop
+    156  f30f		       ea		      nop
+    157  f310		       ea		      nop
+    158  f311
+    159  f311		       e8		      inx
+    160  f312
+    161  f312		       86 09		      stx	COLUBK
+    162  f314
+    163  f314		       ea		      nop
+    164  f315		       ea		      nop
+    165  f316		       ea		      nop
+    166  f317
+    167  f317		       88		      dey
+    168  f318		       84 09		      sty	COLUBK
+    169  f31a
+    170  f31a		       85 02		      sta	WSYNC
+    171  f31c
+    172  f31c
+    173  f31c
+    147  f31c					      REPEND
+    148  f31c
+    149  f31c		       ea		      nop
+    150  f31d		       ea		      nop
+    151  f31e		       ea		      nop
+    152  f31f		       ea		      nop
+    153  f320		       ea		      nop
+    154  f321		       ea		      nop
+    155  f322		       ea		      nop
+    156  f323		       ea		      nop
+    157  f324		       ea		      nop
+    158  f325
+    159  f325		       e8		      inx
+    160  f326
+    161  f326		       86 09		      stx	COLUBK
+    162  f328
+    163  f328		       ea		      nop
+    164  f329		       ea		      nop
+    165  f32a		       ea		      nop
+    166  f32b
+    167  f32b		       88		      dey
+    168  f32c		       84 09		      sty	COLUBK
+    169  f32e
+    170  f32e		       85 02		      sta	WSYNC
+    171  f330
+    172  f330
+    173  f330
+    147  f330					      REPEND
+    148  f330
+    149  f330		       ea		      nop
+    150  f331		       ea		      nop
+    151  f332		       ea		      nop
+    152  f333		       ea		      nop
+    153  f334		       ea		      nop
+    154  f335		       ea		      nop
+    155  f336		       ea		      nop
+    156  f337		       ea		      nop
+    157  f338		       ea		      nop
+    158  f339
+    159  f339		       e8		      inx
+    160  f33a
+    161  f33a		       86 09		      stx	COLUBK
+    162  f33c
+    163  f33c		       ea		      nop
+    164  f33d		       ea		      nop
+    165  f33e		       ea		      nop
+    166  f33f
+    167  f33f		       88		      dey
+    168  f340		       84 09		      sty	COLUBK
+    169  f342
+    170  f342		       85 02		      sta	WSYNC
+    171  f344
+    172  f344
+    173  f344
+    147  f344					      REPEND
+    148  f344
+    149  f344		       ea		      nop
+    150  f345		       ea		      nop
+    151  f346		       ea		      nop
+    152  f347		       ea		      nop
+    153  f348		       ea		      nop
+    154  f349		       ea		      nop
+    155  f34a		       ea		      nop
+    156  f34b		       ea		      nop
+    157  f34c		       ea		      nop
+    158  f34d
+    159  f34d		       e8		      inx
+    160  f34e
+    161  f34e		       86 09		      stx	COLUBK
+    162  f350
+    163  f350		       ea		      nop
+    164  f351		       ea		      nop
+    165  f352		       ea		      nop
+    166  f353
+    167  f353		       88		      dey
+    168  f354		       84 09		      sty	COLUBK
+    169  f356
+    170  f356		       85 02		      sta	WSYNC
+    171  f358
+    172  f358
+    173  f358
+    147  f358					      REPEND
+    148  f358
+    149  f358		       ea		      nop
+    150  f359		       ea		      nop
+    151  f35a		       ea		      nop
+    152  f35b		       ea		      nop
+    153  f35c		       ea		      nop
+    154  f35d		       ea		      nop
+    155  f35e		       ea		      nop
+    156  f35f		       ea		      nop
+    157  f360		       ea		      nop
+    158  f361
+    159  f361		       e8		      inx
+    160  f362
+    161  f362		       86 09		      stx	COLUBK
+    162  f364
+    163  f364		       ea		      nop
+    164  f365		       ea		      nop
+    165  f366		       ea		      nop
+    166  f367
+    167  f367		       88		      dey
+    168  f368		       84 09		      sty	COLUBK
+    169  f36a
+    170  f36a		       85 02		      sta	WSYNC
+    171  f36c
+    172  f36c
+    173  f36c
+    147  f36c					      REPEND
+    148  f36c
+    149  f36c		       ea		      nop
+    150  f36d		       ea		      nop
+    151  f36e		       ea		      nop
+    152  f36f		       ea		      nop
+    153  f370		       ea		      nop
+    154  f371		       ea		      nop
+    155  f372		       ea		      nop
+    156  f373		       ea		      nop
+    157  f374		       ea		      nop
+    158  f375
+    159  f375		       e8		      inx
+    160  f376
+    161  f376		       86 09		      stx	COLUBK
+    162  f378
+    163  f378		       ea		      nop
+    164  f379		       ea		      nop
+    165  f37a		       ea		      nop
+    166  f37b
+    167  f37b		       88		      dey
+    168  f37c		       84 09		      sty	COLUBK
+    169  f37e
+    170  f37e		       85 02		      sta	WSYNC
+    171  f380
+    172  f380
+    173  f380
+    147  f380					      REPEND
+    148  f380
+    149  f380		       ea		      nop
+    150  f381		       ea		      nop
+    151  f382		       ea		      nop
+    152  f383		       ea		      nop
+    153  f384		       ea		      nop
+    154  f385		       ea		      nop
+    155  f386		       ea		      nop
+    156  f387		       ea		      nop
+    157  f388		       ea		      nop
+    158  f389
+    159  f389		       e8		      inx
+    160  f38a
+    161  f38a		       86 09		      stx	COLUBK
+    162  f38c
+    163  f38c		       ea		      nop
+    164  f38d		       ea		      nop
+    165  f38e		       ea		      nop
+    166  f38f
+    167  f38f		       88		      dey
+    168  f390		       84 09		      sty	COLUBK
+    169  f392
+    170  f392		       85 02		      sta	WSYNC
+    171  f394
+    172  f394
+    173  f394
+    147  f394					      REPEND
+    148  f394
+    149  f394		       ea		      nop
+    150  f395		       ea		      nop
+    151  f396		       ea		      nop
+    152  f397		       ea		      nop
+    153  f398		       ea		      nop
+    154  f399		       ea		      nop
+    155  f39a		       ea		      nop
+    156  f39b		       ea		      nop
+    157  f39c		       ea		      nop
+    158  f39d
+    159  f39d		       e8		      inx
+    160  f39e
+    161  f39e		       86 09		      stx	COLUBK
+    162  f3a0
+    163  f3a0		       ea		      nop
+    164  f3a1		       ea		      nop
+    165  f3a2		       ea		      nop
+    166  f3a3
+    167  f3a3		       88		      dey
+    168  f3a4		       84 09		      sty	COLUBK
+    169  f3a6
+    170  f3a6		       85 02		      sta	WSYNC
+    171  f3a8
+    172  f3a8
+    173  f3a8
+    147  f3a8					      REPEND
+    148  f3a8
+    149  f3a8		       ea		      nop
+    150  f3a9		       ea		      nop
+    151  f3aa		       ea		      nop
+    152  f3ab		       ea		      nop
+    153  f3ac		       ea		      nop
+    154  f3ad		       ea		      nop
+    155  f3ae		       ea		      nop
+    156  f3af		       ea		      nop
+    157  f3b0		       ea		      nop
+    158  f3b1
+    159  f3b1		       e8		      inx
+    160  f3b2
+    161  f3b2		       86 09		      stx	COLUBK
+    162  f3b4
+    163  f3b4		       ea		      nop
+    164  f3b5		       ea		      nop
+    165  f3b6		       ea		      nop
+    166  f3b7
+    167  f3b7		       88		      dey
+    168  f3b8		       84 09		      sty	COLUBK
+    169  f3ba
+    170  f3ba		       85 02		      sta	WSYNC
+    171  f3bc
+    172  f3bc
+    173  f3bc
+    147  f3bc					      REPEND
+    148  f3bc
+    149  f3bc		       ea		      nop
+    150  f3bd		       ea		      nop
+    151  f3be		       ea		      nop
+    152  f3bf		       ea		      nop
+    153  f3c0		       ea		      nop
+    154  f3c1		       ea		      nop
+    155  f3c2		       ea		      nop
+    156  f3c3		       ea		      nop
+    157  f3c4		       ea		      nop
+    158  f3c5
+    159  f3c5		       e8		      inx
+    160  f3c6
+    161  f3c6		       86 09		      stx	COLUBK
+    162  f3c8
+    163  f3c8		       ea		      nop
+    164  f3c9		       ea		      nop
+    165  f3ca		       ea		      nop
+    166  f3cb
+    167  f3cb		       88		      dey
+    168  f3cc		       84 09		      sty	COLUBK
+    169  f3ce
+    170  f3ce		       85 02		      sta	WSYNC
+    171  f3d0
+    172  f3d0
+    173  f3d0
+    147  f3d0					      REPEND
+    148  f3d0
+    149  f3d0		       ea		      nop
+    150  f3d1		       ea		      nop
+    151  f3d2		       ea		      nop
+    152  f3d3		       ea		      nop
+    153  f3d4		       ea		      nop
+    154  f3d5		       ea		      nop
+    155  f3d6		       ea		      nop
+    156  f3d7		       ea		      nop
+    157  f3d8		       ea		      nop
+    158  f3d9
+    159  f3d9		       e8		      inx
+    160  f3da
+    161  f3da		       86 09		      stx	COLUBK
+    162  f3dc
+    163  f3dc		       ea		      nop
+    164  f3dd		       ea		      nop
+    165  f3de		       ea		      nop
+    166  f3df
+    167  f3df		       88		      dey
+    168  f3e0		       84 09		      sty	COLUBK
+    169  f3e2
+    170  f3e2		       85 02		      sta	WSYNC
+    171  f3e4
+    172  f3e4
+    173  f3e4
+    147  f3e4					      REPEND
+    148  f3e4
+    149  f3e4		       ea		      nop
+    150  f3e5		       ea		      nop
+    151  f3e6		       ea		      nop
+    152  f3e7		       ea		      nop
+    153  f3e8		       ea		      nop
+    154  f3e9		       ea		      nop
+    155  f3ea		       ea		      nop
+    156  f3eb		       ea		      nop
+    157  f3ec		       ea		      nop
+    158  f3ed
+    159  f3ed		       e8		      inx
+    160  f3ee
+    161  f3ee		       86 09		      stx	COLUBK
+    162  f3f0
+    163  f3f0		       ea		      nop
+    164  f3f1		       ea		      nop
+    165  f3f2		       ea		      nop
+    166  f3f3
+    167  f3f3		       88		      dey
+    168  f3f4		       84 09		      sty	COLUBK
+    169  f3f6
+    170  f3f6		       85 02		      sta	WSYNC
+    171  f3f8
+    172  f3f8
+    173  f3f8
+    147  f3f8					      REPEND
+    148  f3f8
+    149  f3f8		       ea		      nop
+    150  f3f9		       ea		      nop
+    151  f3fa		       ea		      nop
+    152  f3fb		       ea		      nop
+    153  f3fc		       ea		      nop
+    154  f3fd		       ea		      nop
+    155  f3fe		       ea		      nop
+    156  f3ff		       ea		      nop
+    157  f400		       ea		      nop
+    158  f401
+    159  f401		       e8		      inx
+    160  f402
+    161  f402		       86 09		      stx	COLUBK
+    162  f404
+    163  f404		       ea		      nop
+    164  f405		       ea		      nop
+    165  f406		       ea		      nop
+    166  f407
+    167  f407		       88		      dey
+    168  f408		       84 09		      sty	COLUBK
+    169  f40a
+    170  f40a		       85 02		      sta	WSYNC
+    171  f40c
+    172  f40c
+    173  f40c
+    147  f40c					      REPEND
+    148  f40c
+    149  f40c		       ea		      nop
+    150  f40d		       ea		      nop
+    151  f40e		       ea		      nop
+    152  f40f		       ea		      nop
+    153  f410		       ea		      nop
+    154  f411		       ea		      nop
+    155  f412		       ea		      nop
+    156  f413		       ea		      nop
+    157  f414		       ea		      nop
+    158  f415
+    159  f415		       e8		      inx
+    160  f416
+    161  f416		       86 09		      stx	COLUBK
+    162  f418
+    163  f418		       ea		      nop
+    164  f419		       ea		      nop
+    165  f41a		       ea		      nop
+    166  f41b
+    167  f41b		       88		      dey
+    168  f41c		       84 09		      sty	COLUBK
+    169  f41e
+    170  f41e		       85 02		      sta	WSYNC
+    171  f420
+    172  f420
+    173  f420
+    147  f420					      REPEND
+    148  f420
+    149  f420		       ea		      nop
+    150  f421		       ea		      nop
+    151  f422		       ea		      nop
+    152  f423		       ea		      nop
+    153  f424		       ea		      nop
+    154  f425		       ea		      nop
+    155  f426		       ea		      nop
+    156  f427		       ea		      nop
+    157  f428		       ea		      nop
+    158  f429
+    159  f429		       e8		      inx
+    160  f42a
+    161  f42a		       86 09		      stx	COLUBK
+    162  f42c
+    163  f42c		       ea		      nop
+    164  f42d		       ea		      nop
+    165  f42e		       ea		      nop
+    166  f42f
+    167  f42f		       88		      dey
+    168  f430		       84 09		      sty	COLUBK
+    169  f432
+    170  f432		       85 02		      sta	WSYNC
+    171  f434
+    172  f434
+    173  f434
+    147  f434					      REPEND
+    148  f434
+    149  f434		       ea		      nop
+    150  f435		       ea		      nop
+    151  f436		       ea		      nop
+    152  f437		       ea		      nop
+    153  f438		       ea		      nop
+    154  f439		       ea		      nop
+    155  f43a		       ea		      nop
+    156  f43b		       ea		      nop
+    157  f43c		       ea		      nop
+    158  f43d
+    159  f43d		       e8		      inx
+    160  f43e
+    161  f43e		       86 09		      stx	COLUBK
+    162  f440
+    163  f440		       ea		      nop
+    164  f441		       ea		      nop
+    165  f442		       ea		      nop
+    166  f443
+    167  f443		       88		      dey
+    168  f444		       84 09		      sty	COLUBK
+    169  f446
+    170  f446		       85 02		      sta	WSYNC
+    171  f448
+    172  f448
+    173  f448
+    147  f448					      REPEND
+    148  f448
+    149  f448		       ea		      nop
+    150  f449		       ea		      nop
+    151  f44a		       ea		      nop
+    152  f44b		       ea		      nop
+    153  f44c		       ea		      nop
+    154  f44d		       ea		      nop
+    155  f44e		       ea		      nop
+    156  f44f		       ea		      nop
+    157  f450		       ea		      nop
+    158  f451
+    159  f451		       e8		      inx
+    160  f452
+    161  f452		       86 09		      stx	COLUBK
+    162  f454
+    163  f454		       ea		      nop
+    164  f455		       ea		      nop
+    165  f456		       ea		      nop
+    166  f457
+    167  f457		       88		      dey
+    168  f458		       84 09		      sty	COLUBK
+    169  f45a
+    170  f45a		       85 02		      sta	WSYNC
+    171  f45c
+    172  f45c
+    173  f45c
+    147  f45c					      REPEND
+    148  f45c
+    149  f45c		       ea		      nop
+    150  f45d		       ea		      nop
+    151  f45e		       ea		      nop
+    152  f45f		       ea		      nop
+    153  f460		       ea		      nop
+    154  f461		       ea		      nop
+    155  f462		       ea		      nop
+    156  f463		       ea		      nop
+    157  f464		       ea		      nop
+    158  f465
+    159  f465		       e8		      inx
+    160  f466
+    161  f466		       86 09		      stx	COLUBK
+    162  f468
+    163  f468		       ea		      nop
+    164  f469		       ea		      nop
+    165  f46a		       ea		      nop
+    166  f46b
+    167  f46b		       88		      dey
+    168  f46c		       84 09		      sty	COLUBK
+    169  f46e
+    170  f46e		       85 02		      sta	WSYNC
+    171  f470
+    172  f470
+    173  f470
+    147  f470					      REPEND
+    148  f470
+    149  f470		       ea		      nop
+    150  f471		       ea		      nop
+    151  f472		       ea		      nop
+    152  f473		       ea		      nop
+    153  f474		       ea		      nop
+    154  f475		       ea		      nop
+    155  f476		       ea		      nop
+    156  f477		       ea		      nop
+    157  f478		       ea		      nop
+    158  f479
+    159  f479		       e8		      inx
+    160  f47a
+    161  f47a		       86 09		      stx	COLUBK
+    162  f47c
+    163  f47c		       ea		      nop
+    164  f47d		       ea		      nop
+    165  f47e		       ea		      nop
+    166  f47f
+    167  f47f		       88		      dey
+    168  f480		       84 09		      sty	COLUBK
+    169  f482
+    170  f482		       85 02		      sta	WSYNC
+    171  f484
+    172  f484
+    173  f484
+    147  f484					      REPEND
+    148  f484
+    149  f484		       ea		      nop
+    150  f485		       ea		      nop
+    151  f486		       ea		      nop
+    152  f487		       ea		      nop
+    153  f488		       ea		      nop
+    154  f489		       ea		      nop
+    155  f48a		       ea		      nop
+    156  f48b		       ea		      nop
+    157  f48c		       ea		      nop
+    158  f48d
+    159  f48d		       e8		      inx
+    160  f48e
+    161  f48e		       86 09		      stx	COLUBK
+    162  f490
+    163  f490		       ea		      nop
+    164  f491		       ea		      nop
+    165  f492		       ea		      nop
+    166  f493
+    167  f493		       88		      dey
+    168  f494		       84 09		      sty	COLUBK
+    169  f496
+    170  f496		       85 02		      sta	WSYNC
+    171  f498
+    172  f498
+    173  f498
+    147  f498					      REPEND
+    148  f498
+    149  f498		       ea		      nop
+    150  f499		       ea		      nop
+    151  f49a		       ea		      nop
+    152  f49b		       ea		      nop
+    153  f49c		       ea		      nop
+    154  f49d		       ea		      nop
+    155  f49e		       ea		      nop
+    156  f49f		       ea		      nop
+    157  f4a0		       ea		      nop
+    158  f4a1
+    159  f4a1		       e8		      inx
+    160  f4a2
+    161  f4a2		       86 09		      stx	COLUBK
+    162  f4a4
+    163  f4a4		       ea		      nop
+    164  f4a5		       ea		      nop
+    165  f4a6		       ea		      nop
+    166  f4a7
+    167  f4a7		       88		      dey
+    168  f4a8		       84 09		      sty	COLUBK
+    169  f4aa
+    170  f4aa		       85 02		      sta	WSYNC
+    171  f4ac
+    172  f4ac
+    173  f4ac
+    147  f4ac					      REPEND
+    148  f4ac
+    149  f4ac		       ea		      nop
+    150  f4ad		       ea		      nop
+    151  f4ae		       ea		      nop
+    152  f4af		       ea		      nop
+    153  f4b0		       ea		      nop
+    154  f4b1		       ea		      nop
+    155  f4b2		       ea		      nop
+    156  f4b3		       ea		      nop
+    157  f4b4		       ea		      nop
+    158  f4b5
+    159  f4b5		       e8		      inx
+    160  f4b6
+    161  f4b6		       86 09		      stx	COLUBK
+    162  f4b8
+    163  f4b8		       ea		      nop
+    164  f4b9		       ea		      nop
+    165  f4ba		       ea		      nop
+    166  f4bb
+    167  f4bb		       88		      dey
+    168  f4bc		       84 09		      sty	COLUBK
+    169  f4be
+    170  f4be		       85 02		      sta	WSYNC
+    171  f4c0
+    172  f4c0
+    173  f4c0
+    147  f4c0					      REPEND
+    148  f4c0
+    149  f4c0		       ea		      nop
+    150  f4c1		       ea		      nop
+    151  f4c2		       ea		      nop
+    152  f4c3		       ea		      nop
+    153  f4c4		       ea		      nop
+    154  f4c5		       ea		      nop
+    155  f4c6		       ea		      nop
+    156  f4c7		       ea		      nop
+    157  f4c8		       ea		      nop
+    158  f4c9
+    159  f4c9		       e8		      inx
+    160  f4ca
+    161  f4ca		       86 09		      stx	COLUBK
+    162  f4cc
+    163  f4cc		       ea		      nop
+    164  f4cd		       ea		      nop
+    165  f4ce		       ea		      nop
+    166  f4cf
+    167  f4cf		       88		      dey
+    168  f4d0		       84 09		      sty	COLUBK
+    169  f4d2
+    170  f4d2		       85 02		      sta	WSYNC
+    171  f4d4
+    172  f4d4
+    173  f4d4
+    147  f4d4					      REPEND
+    148  f4d4
+    149  f4d4		       ea		      nop
+    150  f4d5		       ea		      nop
+    151  f4d6		       ea		      nop
+    152  f4d7		       ea		      nop
+    153  f4d8		       ea		      nop
+    154  f4d9		       ea		      nop
+    155  f4da		       ea		      nop
+    156  f4db		       ea		      nop
+    157  f4dc		       ea		      nop
+    158  f4dd
+    159  f4dd		       e8		      inx
+    160  f4de
+    161  f4de		       86 09		      stx	COLUBK
+    162  f4e0
+    163  f4e0		       ea		      nop
+    164  f4e1		       ea		      nop
+    165  f4e2		       ea		      nop
+    166  f4e3
+    167  f4e3		       88		      dey
+    168  f4e4		       84 09		      sty	COLUBK
+    169  f4e6
+    170  f4e6		       85 02		      sta	WSYNC
+    171  f4e8
+    172  f4e8
+    173  f4e8
+    147  f4e8					      REPEND
+    148  f4e8
+    149  f4e8		       ea		      nop
+    150  f4e9		       ea		      nop
+    151  f4ea		       ea		      nop
+    152  f4eb		       ea		      nop
+    153  f4ec		       ea		      nop
+    154  f4ed		       ea		      nop
+    155  f4ee		       ea		      nop
+    156  f4ef		       ea		      nop
+    157  f4f0		       ea		      nop
+    158  f4f1
+    159  f4f1		       e8		      inx
+    160  f4f2
+    161  f4f2		       86 09		      stx	COLUBK
+    162  f4f4
+    163  f4f4		       ea		      nop
+    164  f4f5		       ea		      nop
+    165  f4f6		       ea		      nop
+    166  f4f7
+    167  f4f7		       88		      dey
+    168  f4f8		       84 09		      sty	COLUBK
+    169  f4fa
+    170  f4fa		       85 02		      sta	WSYNC
+    171  f4fc
+    172  f4fc
+    173  f4fc
+    147  f4fc					      REPEND
+    148  f4fc
+    149  f4fc		       ea		      nop
+    150  f4fd		       ea		      nop
+    151  f4fe		       ea		      nop
+    152  f4ff		       ea		      nop
+    153  f500		       ea		      nop
+    154  f501		       ea		      nop
+    155  f502		       ea		      nop
+    156  f503		       ea		      nop
+    157  f504		       ea		      nop
+    158  f505
+    159  f505		       e8		      inx
+    160  f506
+    161  f506		       86 09		      stx	COLUBK
+    162  f508
+    163  f508		       ea		      nop
+    164  f509		       ea		      nop
+    165  f50a		       ea		      nop
+    166  f50b
+    167  f50b		       88		      dey
+    168  f50c		       84 09		      sty	COLUBK
+    169  f50e
+    170  f50e		       85 02		      sta	WSYNC
+    171  f510
+    172  f510
+    173  f510
+    147  f510					      REPEND
+    148  f510
+    149  f510		       ea		      nop
+    150  f511		       ea		      nop
+    151  f512		       ea		      nop
+    152  f513		       ea		      nop
+    153  f514		       ea		      nop
+    154  f515		       ea		      nop
+    155  f516		       ea		      nop
+    156  f517		       ea		      nop
+    157  f518		       ea		      nop
+    158  f519
+    159  f519		       e8		      inx
+    160  f51a
+    161  f51a		       86 09		      stx	COLUBK
+    162  f51c
+    163  f51c		       ea		      nop
+    164  f51d		       ea		      nop
+    165  f51e		       ea		      nop
+    166  f51f
+    167  f51f		       88		      dey
+    168  f520		       84 09		      sty	COLUBK
+    169  f522
+    170  f522		       85 02		      sta	WSYNC
+    171  f524
+    172  f524
+    173  f524
+    147  f524					      REPEND
+    148  f524
+    149  f524		       ea		      nop
+    150  f525		       ea		      nop
+    151  f526		       ea		      nop
+    152  f527		       ea		      nop
+    153  f528		       ea		      nop
+    154  f529		       ea		      nop
+    155  f52a		       ea		      nop
+    156  f52b		       ea		      nop
+    157  f52c		       ea		      nop
+    158  f52d
+    159  f52d		       e8		      inx
+    160  f52e
+    161  f52e		       86 09		      stx	COLUBK
+    162  f530
+    163  f530		       ea		      nop
+    164  f531		       ea		      nop
+    165  f532		       ea		      nop
+    166  f533
+    167  f533		       88		      dey
+    168  f534		       84 09		      sty	COLUBK
+    169  f536
+    170  f536		       85 02		      sta	WSYNC
+    171  f538
+    172  f538
+    173  f538
+    147  f538					      REPEND
+    148  f538
+    149  f538		       ea		      nop
+    150  f539		       ea		      nop
+    151  f53a		       ea		      nop
+    152  f53b		       ea		      nop
+    153  f53c		       ea		      nop
+    154  f53d		       ea		      nop
+    155  f53e		       ea		      nop
+    156  f53f		       ea		      nop
+    157  f540		       ea		      nop
+    158  f541
+    159  f541		       e8		      inx
+    160  f542
+    161  f542		       86 09		      stx	COLUBK
+    162  f544
+    163  f544		       ea		      nop
+    164  f545		       ea		      nop
+    165  f546		       ea		      nop
+    166  f547
+    167  f547		       88		      dey
+    168  f548		       84 09		      sty	COLUBK
+    169  f54a
+    170  f54a		       85 02		      sta	WSYNC
+    171  f54c
+    172  f54c
+    173  f54c
+    147  f54c					      REPEND
+    148  f54c
+    149  f54c		       ea		      nop
+    150  f54d		       ea		      nop
+    151  f54e		       ea		      nop
+    152  f54f		       ea		      nop
+    153  f550		       ea		      nop
+    154  f551		       ea		      nop
+    155  f552		       ea		      nop
+    156  f553		       ea		      nop
+    157  f554		       ea		      nop
+    158  f555
+    159  f555		       e8		      inx
+    160  f556
+    161  f556		       86 09		      stx	COLUBK
+    162  f558
+    163  f558		       ea		      nop
+    164  f559		       ea		      nop
+    165  f55a		       ea		      nop
+    166  f55b
+    167  f55b		       88		      dey
+    168  f55c		       84 09		      sty	COLUBK
+    169  f55e
+    170  f55e		       85 02		      sta	WSYNC
+    171  f560
+    172  f560
+    173  f560
+    147  f560					      REPEND
+    148  f560
+    149  f560		       ea		      nop
+    150  f561		       ea		      nop
+    151  f562		       ea		      nop
+    152  f563		       ea		      nop
+    153  f564		       ea		      nop
+    154  f565		       ea		      nop
+    155  f566		       ea		      nop
+    156  f567		       ea		      nop
+    157  f568		       ea		      nop
+    158  f569
+    159  f569		       e8		      inx
+    160  f56a
+    161  f56a		       86 09		      stx	COLUBK
+    162  f56c
+    163  f56c		       ea		      nop
+    164  f56d		       ea		      nop
+    165  f56e		       ea		      nop
+    166  f56f
+    167  f56f		       88		      dey
+    168  f570		       84 09		      sty	COLUBK
+    169  f572
+    170  f572		       85 02		      sta	WSYNC
+    171  f574
+    172  f574
+    173  f574
+    147  f574					      REPEND
+    148  f574
+    149  f574		       ea		      nop
+    150  f575		       ea		      nop
+    151  f576		       ea		      nop
+    152  f577		       ea		      nop
+    153  f578		       ea		      nop
+    154  f579		       ea		      nop
+    155  f57a		       ea		      nop
+    156  f57b		       ea		      nop
+    157  f57c		       ea		      nop
+    158  f57d
+    159  f57d		       e8		      inx
+    160  f57e
+    161  f57e		       86 09		      stx	COLUBK
+    162  f580
+    163  f580		       ea		      nop
+    164  f581		       ea		      nop
+    165  f582		       ea		      nop
+    166  f583
+    167  f583		       88		      dey
+    168  f584		       84 09		      sty	COLUBK
+    169  f586
+    170  f586		       85 02		      sta	WSYNC
+    171  f588
+    172  f588
+    173  f588
+    147  f588					      REPEND
+    148  f588
+    149  f588		       ea		      nop
+    150  f589		       ea		      nop
+    151  f58a		       ea		      nop
+    152  f58b		       ea		      nop
+    153  f58c		       ea		      nop
+    154  f58d		       ea		      nop
+    155  f58e		       ea		      nop
+    156  f58f		       ea		      nop
+    157  f590		       ea		      nop
+    158  f591
+    159  f591		       e8		      inx
+    160  f592
+    161  f592		       86 09		      stx	COLUBK
+    162  f594
+    163  f594		       ea		      nop
+    164  f595		       ea		      nop
+    165  f596		       ea		      nop
+    166  f597
+    167  f597		       88		      dey
+    168  f598		       84 09		      sty	COLUBK
+    169  f59a
+    170  f59a		       85 02		      sta	WSYNC
+    171  f59c
+    172  f59c
+    173  f59c
+    147  f59c					      REPEND
+    148  f59c
+    149  f59c		       ea		      nop
+    150  f59d		       ea		      nop
+    151  f59e		       ea		      nop
+    152  f59f		       ea		      nop
+    153  f5a0		       ea		      nop
+    154  f5a1		       ea		      nop
+    155  f5a2		       ea		      nop
+    156  f5a3		       ea		      nop
+    157  f5a4		       ea		      nop
+    158  f5a5
+    159  f5a5		       e8		      inx
+    160  f5a6
+    161  f5a6		       86 09		      stx	COLUBK
+    162  f5a8
+    163  f5a8		       ea		      nop
+    164  f5a9		       ea		      nop
+    165  f5aa		       ea		      nop
+    166  f5ab
+    167  f5ab		       88		      dey
+    168  f5ac		       84 09		      sty	COLUBK
+    169  f5ae
+    170  f5ae		       85 02		      sta	WSYNC
+    171  f5b0
+    172  f5b0
+    173  f5b0
+    147  f5b0					      REPEND
+    148  f5b0
+    149  f5b0		       ea		      nop
+    150  f5b1		       ea		      nop
+    151  f5b2		       ea		      nop
+    152  f5b3		       ea		      nop
+    153  f5b4		       ea		      nop
+    154  f5b5		       ea		      nop
+    155  f5b6		       ea		      nop
+    156  f5b7		       ea		      nop
+    157  f5b8		       ea		      nop
+    158  f5b9
+    159  f5b9		       e8		      inx
+    160  f5ba
+    161  f5ba		       86 09		      stx	COLUBK
+    162  f5bc
+    163  f5bc		       ea		      nop
+    164  f5bd		       ea		      nop
+    165  f5be		       ea		      nop
+    166  f5bf
+    167  f5bf		       88		      dey
+    168  f5c0		       84 09		      sty	COLUBK
+    169  f5c2
+    170  f5c2		       85 02		      sta	WSYNC
+    171  f5c4
+    172  f5c4
+    173  f5c4
+    147  f5c4					      REPEND
+    148  f5c4
+    149  f5c4		       ea		      nop
+    150  f5c5		       ea		      nop
+    151  f5c6		       ea		      nop
+    152  f5c7		       ea		      nop
+    153  f5c8		       ea		      nop
+    154  f5c9		       ea		      nop
+    155  f5ca		       ea		      nop
+    156  f5cb		       ea		      nop
+    157  f5cc		       ea		      nop
+    158  f5cd
+    159  f5cd		       e8		      inx
+    160  f5ce
+    161  f5ce		       86 09		      stx	COLUBK
+    162  f5d0
+    163  f5d0		       ea		      nop
+    164  f5d1		       ea		      nop
+    165  f5d2		       ea		      nop
+    166  f5d3
+    167  f5d3		       88		      dey
+    168  f5d4		       84 09		      sty	COLUBK
+    169  f5d6
+    170  f5d6		       85 02		      sta	WSYNC
+    171  f5d8
+    172  f5d8
+    173  f5d8
+    147  f5d8					      REPEND
+    148  f5d8
+    149  f5d8		       ea		      nop
+    150  f5d9		       ea		      nop
+    151  f5da		       ea		      nop
+    152  f5db		       ea		      nop
+    153  f5dc		       ea		      nop
+    154  f5dd		       ea		      nop
+    155  f5de		       ea		      nop
+    156  f5df		       ea		      nop
+    157  f5e0		       ea		      nop
+    158  f5e1
+    159  f5e1		       e8		      inx
+    160  f5e2
+    161  f5e2		       86 09		      stx	COLUBK
+    162  f5e4
+    163  f5e4		       ea		      nop
+    164  f5e5		       ea		      nop
+    165  f5e6		       ea		      nop
+    166  f5e7
+    167  f5e7		       88		      dey
+    168  f5e8		       84 09		      sty	COLUBK
+    169  f5ea
+    170  f5ea		       85 02		      sta	WSYNC
+    171  f5ec
+    172  f5ec
+    173  f5ec
+    147  f5ec					      REPEND
+    148  f5ec
+    149  f5ec		       ea		      nop
+    150  f5ed		       ea		      nop
+    151  f5ee		       ea		      nop
+    152  f5ef		       ea		      nop
+    153  f5f0		       ea		      nop
+    154  f5f1		       ea		      nop
+    155  f5f2		       ea		      nop
+    156  f5f3		       ea		      nop
+    157  f5f4		       ea		      nop
+    158  f5f5
+    159  f5f5		       e8		      inx
+    160  f5f6
+    161  f5f6		       86 09		      stx	COLUBK
+    162  f5f8
+    163  f5f8		       ea		      nop
+    164  f5f9		       ea		      nop
+    165  f5fa		       ea		      nop
+    166  f5fb
+    167  f5fb		       88		      dey
+    168  f5fc		       84 09		      sty	COLUBK
+    169  f5fe
+    170  f5fe		       85 02		      sta	WSYNC
+    171  f600
+    172  f600
+    173  f600
+    147  f600					      REPEND
+    148  f600
+    149  f600		       ea		      nop
+    150  f601		       ea		      nop
+    151  f602		       ea		      nop
+    152  f603		       ea		      nop
+    153  f604		       ea		      nop
+    154  f605		       ea		      nop
+    155  f606		       ea		      nop
+    156  f607		       ea		      nop
+    157  f608		       ea		      nop
+    158  f609
+    159  f609		       e8		      inx
+    160  f60a
+    161  f60a		       86 09		      stx	COLUBK
+    162  f60c
+    163  f60c		       ea		      nop
+    164  f60d		       ea		      nop
+    165  f60e		       ea		      nop
+    166  f60f
+    167  f60f		       88		      dey
+    168  f610		       84 09		      sty	COLUBK
+    169  f612
+    170  f612		       85 02		      sta	WSYNC
+    171  f614
+    172  f614
+    173  f614
+    147  f614					      REPEND
+    148  f614
+    149  f614		       ea		      nop
+    150  f615		       ea		      nop
+    151  f616		       ea		      nop
+    152  f617		       ea		      nop
+    153  f618		       ea		      nop
+    154  f619		       ea		      nop
+    155  f61a		       ea		      nop
+    156  f61b		       ea		      nop
+    157  f61c		       ea		      nop
+    158  f61d
+    159  f61d		       e8		      inx
+    160  f61e
+    161  f61e		       86 09		      stx	COLUBK
+    162  f620
+    163  f620		       ea		      nop
+    164  f621		       ea		      nop
+    165  f622		       ea		      nop
+    166  f623
+    167  f623		       88		      dey
+    168  f624		       84 09		      sty	COLUBK
+    169  f626
+    170  f626		       85 02		      sta	WSYNC
+    171  f628
+    172  f628
+    173  f628
+    147  f628					      REPEND
+    148  f628
+    149  f628		       ea		      nop
+    150  f629		       ea		      nop
+    151  f62a		       ea		      nop
+    152  f62b		       ea		      nop
+    153  f62c		       ea		      nop
+    154  f62d		       ea		      nop
+    155  f62e		       ea		      nop
+    156  f62f		       ea		      nop
+    157  f630		       ea		      nop
+    158  f631
+    159  f631		       e8		      inx
+    160  f632
+    161  f632		       86 09		      stx	COLUBK
+    162  f634
+    163  f634		       ea		      nop
+    164  f635		       ea		      nop
+    165  f636		       ea		      nop
+    166  f637
+    167  f637		       88		      dey
+    168  f638		       84 09		      sty	COLUBK
+    169  f63a
+    170  f63a		       85 02		      sta	WSYNC
+    171  f63c
+    172  f63c
+    173  f63c
+    147  f63c					      REPEND
+    148  f63c
+    149  f63c		       ea		      nop
+    150  f63d		       ea		      nop
+    151  f63e		       ea		      nop
+    152  f63f		       ea		      nop
+    153  f640		       ea		      nop
+    154  f641		       ea		      nop
+    155  f642		       ea		      nop
+    156  f643		       ea		      nop
+    157  f644		       ea		      nop
+    158  f645
+    159  f645		       e8		      inx
+    160  f646
+    161  f646		       86 09		      stx	COLUBK
+    162  f648
+    163  f648		       ea		      nop
+    164  f649		       ea		      nop
+    165  f64a		       ea		      nop
+    166  f64b
+    167  f64b		       88		      dey
+    168  f64c		       84 09		      sty	COLUBK
+    169  f64e
+    170  f64e		       85 02		      sta	WSYNC
+    171  f650
+    172  f650
+    173  f650
+    147  f650					      REPEND
+    148  f650
+    149  f650		       ea		      nop
+    150  f651		       ea		      nop
+    151  f652		       ea		      nop
+    152  f653		       ea		      nop
+    153  f654		       ea		      nop
+    154  f655		       ea		      nop
+    155  f656		       ea		      nop
+    156  f657		       ea		      nop
+    157  f658		       ea		      nop
+    158  f659
+    159  f659		       e8		      inx
+    160  f65a
+    161  f65a		       86 09		      stx	COLUBK
+    162  f65c
+    163  f65c		       ea		      nop
+    164  f65d		       ea		      nop
+    165  f65e		       ea		      nop
+    166  f65f
+    167  f65f		       88		      dey
+    168  f660		       84 09		      sty	COLUBK
+    169  f662
+    170  f662		       85 02		      sta	WSYNC
+    171  f664
+    172  f664
+    173  f664
+    147  f664					      REPEND
+    148  f664
+    149  f664		       ea		      nop
+    150  f665		       ea		      nop
+    151  f666		       ea		      nop
+    152  f667		       ea		      nop
+    153  f668		       ea		      nop
+    154  f669		       ea		      nop
+    155  f66a		       ea		      nop
+    156  f66b		       ea		      nop
+    157  f66c		       ea		      nop
+    158  f66d
+    159  f66d		       e8		      inx
+    160  f66e
+    161  f66e		       86 09		      stx	COLUBK
+    162  f670
+    163  f670		       ea		      nop
+    164  f671		       ea		      nop
+    165  f672		       ea		      nop
+    166  f673
+    167  f673		       88		      dey
+    168  f674		       84 09		      sty	COLUBK
+    169  f676
+    170  f676		       85 02		      sta	WSYNC
+    171  f678
+    172  f678
+    173  f678
+    147  f678					      REPEND
+    148  f678
+    149  f678		       ea		      nop
+    150  f679		       ea		      nop
+    151  f67a		       ea		      nop
+    152  f67b		       ea		      nop
+    153  f67c		       ea		      nop
+    154  f67d		       ea		      nop
+    155  f67e		       ea		      nop
+    156  f67f		       ea		      nop
+    157  f680		       ea		      nop
+    158  f681
+    159  f681		       e8		      inx
+    160  f682
+    161  f682		       86 09		      stx	COLUBK
+    162  f684
+    163  f684		       ea		      nop
+    164  f685		       ea		      nop
+    165  f686		       ea		      nop
+    166  f687
+    167  f687		       88		      dey
+    168  f688		       84 09		      sty	COLUBK
+    169  f68a
+    170  f68a		       85 02		      sta	WSYNC
+    171  f68c
+    172  f68c
+    173  f68c
+    147  f68c					      REPEND
+    148  f68c
+    149  f68c		       ea		      nop
+    150  f68d		       ea		      nop
+    151  f68e		       ea		      nop
+    152  f68f		       ea		      nop
+    153  f690		       ea		      nop
+    154  f691		       ea		      nop
+    155  f692		       ea		      nop
+    156  f693		       ea		      nop
+    157  f694		       ea		      nop
+    158  f695
+    159  f695		       e8		      inx
+    160  f696
+    161  f696		       86 09		      stx	COLUBK
+    162  f698
+    163  f698		       ea		      nop
+    164  f699		       ea		      nop
+    165  f69a		       ea		      nop
+    166  f69b
+    167  f69b		       88		      dey
+    168  f69c		       84 09		      sty	COLUBK
+    169  f69e
+    170  f69e		       85 02		      sta	WSYNC
+    171  f6a0
+    172  f6a0
+    173  f6a0
+    147  f6a0					      REPEND
+    148  f6a0
+    149  f6a0		       ea		      nop
+    150  f6a1		       ea		      nop
+    151  f6a2		       ea		      nop
+    152  f6a3		       ea		      nop
+    153  f6a4		       ea		      nop
+    154  f6a5		       ea		      nop
+    155  f6a6		       ea		      nop
+    156  f6a7		       ea		      nop
+    157  f6a8		       ea		      nop
+    158  f6a9
+    159  f6a9		       e8		      inx
+    160  f6aa
+    161  f6aa		       86 09		      stx	COLUBK
+    162  f6ac
+    163  f6ac		       ea		      nop
+    164  f6ad		       ea		      nop
+    165  f6ae		       ea		      nop
+    166  f6af
+    167  f6af		       88		      dey
+    168  f6b0		       84 09		      sty	COLUBK
+    169  f6b2
+    170  f6b2		       85 02		      sta	WSYNC
+    171  f6b4
+    172  f6b4
+    173  f6b4
+    147  f6b4					      REPEND
+    148  f6b4
+    149  f6b4		       ea		      nop
+    150  f6b5		       ea		      nop
+    151  f6b6		       ea		      nop
+    152  f6b7		       ea		      nop
+    153  f6b8		       ea		      nop
+    154  f6b9		       ea		      nop
+    155  f6ba		       ea		      nop
+    156  f6bb		       ea		      nop
+    157  f6bc		       ea		      nop
+    158  f6bd
+    159  f6bd		       e8		      inx
+    160  f6be
+    161  f6be		       86 09		      stx	COLUBK
+    162  f6c0
+    163  f6c0		       ea		      nop
+    164  f6c1		       ea		      nop
+    165  f6c2		       ea		      nop
+    166  f6c3
+    167  f6c3		       88		      dey
+    168  f6c4		       84 09		      sty	COLUBK
+    169  f6c6
+    170  f6c6		       85 02		      sta	WSYNC
+    171  f6c8
+    172  f6c8
+    173  f6c8
+    147  f6c8					      REPEND
+    148  f6c8
+    149  f6c8		       ea		      nop
+    150  f6c9		       ea		      nop
+    151  f6ca		       ea		      nop
+    152  f6cb		       ea		      nop
+    153  f6cc		       ea		      nop
+    154  f6cd		       ea		      nop
+    155  f6ce		       ea		      nop
+    156  f6cf		       ea		      nop
+    157  f6d0		       ea		      nop
+    158  f6d1
+    159  f6d1		       e8		      inx
+    160  f6d2
+    161  f6d2		       86 09		      stx	COLUBK
+    162  f6d4
+    163  f6d4		       ea		      nop
+    164  f6d5		       ea		      nop
+    165  f6d6		       ea		      nop
+    166  f6d7
+    167  f6d7		       88		      dey
+    168  f6d8		       84 09		      sty	COLUBK
+    169  f6da
+    170  f6da		       85 02		      sta	WSYNC
+    171  f6dc
+    172  f6dc
+    173  f6dc
+    147  f6dc					      REPEND
+    148  f6dc
+    149  f6dc		       ea		      nop
+    150  f6dd		       ea		      nop
+    151  f6de		       ea		      nop
+    152  f6df		       ea		      nop
+    153  f6e0		       ea		      nop
+    154  f6e1		       ea		      nop
+    155  f6e2		       ea		      nop
+    156  f6e3		       ea		      nop
+    157  f6e4		       ea		      nop
+    158  f6e5
+    159  f6e5		       e8		      inx
+    160  f6e6
+    161  f6e6		       86 09		      stx	COLUBK
+    162  f6e8
+    163  f6e8		       ea		      nop
+    164  f6e9		       ea		      nop
+    165  f6ea		       ea		      nop
+    166  f6eb
+    167  f6eb		       88		      dey
+    168  f6ec		       84 09		      sty	COLUBK
+    169  f6ee
+    170  f6ee		       85 02		      sta	WSYNC
+    171  f6f0
+    172  f6f0
+    173  f6f0
+    147  f6f0					      REPEND
+    148  f6f0
+    149  f6f0		       ea		      nop
+    150  f6f1		       ea		      nop
+    151  f6f2		       ea		      nop
+    152  f6f3		       ea		      nop
+    153  f6f4		       ea		      nop
+    154  f6f5		       ea		      nop
+    155  f6f6		       ea		      nop
+    156  f6f7		       ea		      nop
+    157  f6f8		       ea		      nop
+    158  f6f9
+    159  f6f9		       e8		      inx
+    160  f6fa
+    161  f6fa		       86 09		      stx	COLUBK
+    162  f6fc
+    163  f6fc		       ea		      nop
+    164  f6fd		       ea		      nop
+    165  f6fe		       ea		      nop
+    166  f6ff
+    167  f6ff		       88		      dey
+    168  f700		       84 09		      sty	COLUBK
+    169  f702
+    170  f702		       85 02		      sta	WSYNC
+    171  f704
+    172  f704
+    173  f704
+    147  f704					      REPEND
+    148  f704
+    149  f704		       ea		      nop
+    150  f705		       ea		      nop
+    151  f706		       ea		      nop
+    152  f707		       ea		      nop
+    153  f708		       ea		      nop
+    154  f709		       ea		      nop
+    155  f70a		       ea		      nop
+    156  f70b		       ea		      nop
+    157  f70c		       ea		      nop
+    158  f70d
+    159  f70d		       e8		      inx
+    160  f70e
+    161  f70e		       86 09		      stx	COLUBK
+    162  f710
+    163  f710		       ea		      nop
+    164  f711		       ea		      nop
+    165  f712		       ea		      nop
+    166  f713
+    167  f713		       88		      dey
+    168  f714		       84 09		      sty	COLUBK
+    169  f716
+    170  f716		       85 02		      sta	WSYNC
+    171  f718
+    172  f718
+    173  f718
+    147  f718					      REPEND
+    148  f718
+    149  f718		       ea		      nop
+    150  f719		       ea		      nop
+    151  f71a		       ea		      nop
+    152  f71b		       ea		      nop
+    153  f71c		       ea		      nop
+    154  f71d		       ea		      nop
+    155  f71e		       ea		      nop
+    156  f71f		       ea		      nop
+    157  f720		       ea		      nop
+    158  f721
+    159  f721		       e8		      inx
+    160  f722
+    161  f722		       86 09		      stx	COLUBK
+    162  f724
+    163  f724		       ea		      nop
+    164  f725		       ea		      nop
+    165  f726		       ea		      nop
+    166  f727
+    167  f727		       88		      dey
+    168  f728		       84 09		      sty	COLUBK
+    169  f72a
+    170  f72a		       85 02		      sta	WSYNC
+    171  f72c
+    172  f72c
+    173  f72c
+    147  f72c					      REPEND
+    148  f72c
+    149  f72c		       ea		      nop
+    150  f72d		       ea		      nop
+    151  f72e		       ea		      nop
+    152  f72f		       ea		      nop
+    153  f730		       ea		      nop
+    154  f731		       ea		      nop
+    155  f732		       ea		      nop
+    156  f733		       ea		      nop
+    157  f734		       ea		      nop
+    158  f735
+    159  f735		       e8		      inx
+    160  f736
+    161  f736		       86 09		      stx	COLUBK
+    162  f738
+    163  f738		       ea		      nop
+    164  f739		       ea		      nop
+    165  f73a		       ea		      nop
+    166  f73b
+    167  f73b		       88		      dey
+    168  f73c		       84 09		      sty	COLUBK
+    169  f73e
+    170  f73e		       85 02		      sta	WSYNC
+    171  f740
+    172  f740
+    173  f740
+    147  f740					      REPEND
+    148  f740
+    149  f740		       ea		      nop
+    150  f741		       ea		      nop
+    151  f742		       ea		      nop
+    152  f743		       ea		      nop
+    153  f744		       ea		      nop
+    154  f745		       ea		      nop
+    155  f746		       ea		      nop
+    156  f747		       ea		      nop
+    157  f748		       ea		      nop
+    158  f749
+    159  f749		       e8		      inx
+    160  f74a
+    161  f74a		       86 09		      stx	COLUBK
+    162  f74c
+    163  f74c		       ea		      nop
+    164  f74d		       ea		      nop
+    165  f74e		       ea		      nop
+    166  f74f
+    167  f74f		       88		      dey
+    168  f750		       84 09		      sty	COLUBK
+    169  f752
+    170  f752		       85 02		      sta	WSYNC
+    171  f754
+    172  f754
+    173  f754
+    147  f754					      REPEND
+    148  f754
+    149  f754		       ea		      nop
+    150  f755		       ea		      nop
+    151  f756		       ea		      nop
+    152  f757		       ea		      nop
+    153  f758		       ea		      nop
+    154  f759		       ea		      nop
+    155  f75a		       ea		      nop
+    156  f75b		       ea		      nop
+    157  f75c		       ea		      nop
+    158  f75d
+    159  f75d		       e8		      inx
+    160  f75e
+    161  f75e		       86 09		      stx	COLUBK
+    162  f760
+    163  f760		       ea		      nop
+    164  f761		       ea		      nop
+    165  f762		       ea		      nop
+    166  f763
+    167  f763		       88		      dey
+    168  f764		       84 09		      sty	COLUBK
+    169  f766
+    170  f766		       85 02		      sta	WSYNC
+    171  f768
+    172  f768
+    173  f768
+    147  f768					      REPEND
+    148  f768
+    149  f768		       ea		      nop
+    150  f769		       ea		      nop
+    151  f76a		       ea		      nop
+    152  f76b		       ea		      nop
+    153  f76c		       ea		      nop
+    154  f76d		       ea		      nop
+    155  f76e		       ea		      nop
+    156  f76f		       ea		      nop
+    157  f770		       ea		      nop
+    158  f771
+    159  f771		       e8		      inx
+    160  f772
+    161  f772		       86 09		      stx	COLUBK
+    162  f774
+    163  f774		       ea		      nop
+    164  f775		       ea		      nop
+    165  f776		       ea		      nop
+    166  f777
+    167  f777		       88		      dey
+    168  f778		       84 09		      sty	COLUBK
+    169  f77a
+    170  f77a		       85 02		      sta	WSYNC
+    171  f77c
+    172  f77c
+    173  f77c
+    147  f77c					      REPEND
+    148  f77c
+    149  f77c		       ea		      nop
+    150  f77d		       ea		      nop
+    151  f77e		       ea		      nop
+    152  f77f		       ea		      nop
+    153  f780		       ea		      nop
+    154  f781		       ea		      nop
+    155  f782		       ea		      nop
+    156  f783		       ea		      nop
+    157  f784		       ea		      nop
+    158  f785
+    159  f785		       e8		      inx
+    160  f786
+    161  f786		       86 09		      stx	COLUBK
+    162  f788
+    163  f788		       ea		      nop
+    164  f789		       ea		      nop
+    165  f78a		       ea		      nop
+    166  f78b
+    167  f78b		       88		      dey
+    168  f78c		       84 09		      sty	COLUBK
+    169  f78e
+    170  f78e		       85 02		      sta	WSYNC
+    171  f790
+    172  f790
+    173  f790
+    147  f790					      REPEND
+    148  f790
+    149  f790		       ea		      nop
+    150  f791		       ea		      nop
+    151  f792		       ea		      nop
+    152  f793		       ea		      nop
+    153  f794		       ea		      nop
+    154  f795		       ea		      nop
+    155  f796		       ea		      nop
+    156  f797		       ea		      nop
+    157  f798		       ea		      nop
+    158  f799
+    159  f799		       e8		      inx
+    160  f79a
+    161  f79a		       86 09		      stx	COLUBK
+    162  f79c
+    163  f79c		       ea		      nop
+    164  f79d		       ea		      nop
+    165  f79e		       ea		      nop
+    166  f79f
+    167  f79f		       88		      dey
+    168  f7a0		       84 09		      sty	COLUBK
+    169  f7a2
+    170  f7a2		       85 02		      sta	WSYNC
+    171  f7a4
+    172  f7a4
+    173  f7a4
+    147  f7a4					      REPEND
+    148  f7a4
+    149  f7a4		       ea		      nop
+    150  f7a5		       ea		      nop
+    151  f7a6		       ea		      nop
+    152  f7a7		       ea		      nop
+    153  f7a8		       ea		      nop
+    154  f7a9		       ea		      nop
+    155  f7aa		       ea		      nop
+    156  f7ab		       ea		      nop
+    157  f7ac		       ea		      nop
+    158  f7ad
+    159  f7ad		       e8		      inx
+    160  f7ae
+    161  f7ae		       86 09		      stx	COLUBK
+    162  f7b0
+    163  f7b0		       ea		      nop
+    164  f7b1		       ea		      nop
+    165  f7b2		       ea		      nop
+    166  f7b3
+    167  f7b3		       88		      dey
+    168  f7b4		       84 09		      sty	COLUBK
+    169  f7b6
+    170  f7b6		       85 02		      sta	WSYNC
+    171  f7b8
+    172  f7b8
+    173  f7b8
+    147  f7b8					      REPEND
+    148  f7b8
+    149  f7b8		       ea		      nop
+    150  f7b9		       ea		      nop
+    151  f7ba		       ea		      nop
+    152  f7bb		       ea		      nop
+    153  f7bc		       ea		      nop
+    154  f7bd		       ea		      nop
+    155  f7be		       ea		      nop
+    156  f7bf		       ea		      nop
+    157  f7c0		       ea		      nop
+    158  f7c1
+    159  f7c1		       e8		      inx
+    160  f7c2
+    161  f7c2		       86 09		      stx	COLUBK
+    162  f7c4
+    163  f7c4		       ea		      nop
+    164  f7c5		       ea		      nop
+    165  f7c6		       ea		      nop
+    166  f7c7
+    167  f7c7		       88		      dey
+    168  f7c8		       84 09		      sty	COLUBK
+    169  f7ca
+    170  f7ca		       85 02		      sta	WSYNC
+    171  f7cc
+    172  f7cc
+    173  f7cc
+    147  f7cc					      REPEND
+    148  f7cc
+    149  f7cc		       ea		      nop
+    150  f7cd		       ea		      nop
+    151  f7ce		       ea		      nop
+    152  f7cf		       ea		      nop
+    153  f7d0		       ea		      nop
+    154  f7d1		       ea		      nop
+    155  f7d2		       ea		      nop
+    156  f7d3		       ea		      nop
+    157  f7d4		       ea		      nop
+    158  f7d5
+    159  f7d5		       e8		      inx
+    160  f7d6
+    161  f7d6		       86 09		      stx	COLUBK
+    162  f7d8
+    163  f7d8		       ea		      nop
+    164  f7d9		       ea		      nop
+    165  f7da		       ea		      nop
+    166  f7db
+    167  f7db		       88		      dey
+    168  f7dc		       84 09		      sty	COLUBK
+    169  f7de
+    170  f7de		       85 02		      sta	WSYNC
+    171  f7e0
+    172  f7e0
+    173  f7e0
+    147  f7e0					      REPEND
+    148  f7e0
+    149  f7e0		       ea		      nop
+    150  f7e1		       ea		      nop
+    151  f7e2		       ea		      nop
+    152  f7e3		       ea		      nop
+    153  f7e4		       ea		      nop
+    154  f7e5		       ea		      nop
+    155  f7e6		       ea		      nop
+    156  f7e7		       ea		      nop
+    157  f7e8		       ea		      nop
+    158  f7e9
+    159  f7e9		       e8		      inx
+    160  f7ea
+    161  f7ea		       86 09		      stx	COLUBK
+    162  f7ec
+    163  f7ec		       ea		      nop
+    164  f7ed		       ea		      nop
+    165  f7ee		       ea		      nop
+    166  f7ef
+    167  f7ef		       88		      dey
+    168  f7f0		       84 09		      sty	COLUBK
+    169  f7f2
+    170  f7f2		       85 02		      sta	WSYNC
+    171  f7f4
+    172  f7f4
+    173  f7f4
+    147  f7f4					      REPEND
+    148  f7f4
+    149  f7f4		       ea		      nop
+    150  f7f5		       ea		      nop
+    151  f7f6		       ea		      nop
+    152  f7f7		       ea		      nop
+    153  f7f8		       ea		      nop
+    154  f7f9		       ea		      nop
+    155  f7fa		       ea		      nop
+    156  f7fb		       ea		      nop
+    157  f7fc		       ea		      nop
+    158  f7fd
+    159  f7fd		       e8		      inx
+    160  f7fe
+    161  f7fe		       86 09		      stx	COLUBK
+    162  f800
+    163  f800		       ea		      nop
+    164  f801		       ea		      nop
+    165  f802		       ea		      nop
+    166  f803
+    167  f803		       88		      dey
+    168  f804		       84 09		      sty	COLUBK
+    169  f806
+    170  f806		       85 02		      sta	WSYNC
+    171  f808
+    172  f808
+    173  f808
+    147  f808					      REPEND
+    148  f808
+    149  f808		       ea		      nop
+    150  f809		       ea		      nop
+    151  f80a		       ea		      nop
+    152  f80b		       ea		      nop
+    153  f80c		       ea		      nop
+    154  f80d		       ea		      nop
+    155  f80e		       ea		      nop
+    156  f80f		       ea		      nop
+    157  f810		       ea		      nop
+    158  f811
+    159  f811		       e8		      inx
+    160  f812
+    161  f812		       86 09		      stx	COLUBK
+    162  f814
+    163  f814		       ea		      nop
+    164  f815		       ea		      nop
+    165  f816		       ea		      nop
+    166  f817
+    167  f817		       88		      dey
+    168  f818		       84 09		      sty	COLUBK
+    169  f81a
+    170  f81a		       85 02		      sta	WSYNC
+    171  f81c
+    172  f81c
+    173  f81c
+    147  f81c					      REPEND
+    148  f81c
+    149  f81c		       ea		      nop
+    150  f81d		       ea		      nop
+    151  f81e		       ea		      nop
+    152  f81f		       ea		      nop
+    153  f820		       ea		      nop
+    154  f821		       ea		      nop
+    155  f822		       ea		      nop
+    156  f823		       ea		      nop
+    157  f824		       ea		      nop
+    158  f825
+    159  f825		       e8		      inx
+    160  f826
+    161  f826		       86 09		      stx	COLUBK
+    162  f828
+    163  f828		       ea		      nop
+    164  f829		       ea		      nop
+    165  f82a		       ea		      nop
+    166  f82b
+    167  f82b		       88		      dey
+    168  f82c		       84 09		      sty	COLUBK
+    169  f82e
+    170  f82e		       85 02		      sta	WSYNC
+    171  f830
+    172  f830
+    173  f830
+    147  f830					      REPEND
+    148  f830
+    149  f830		       ea		      nop
+    150  f831		       ea		      nop
+    151  f832		       ea		      nop
+    152  f833		       ea		      nop
+    153  f834		       ea		      nop
+    154  f835		       ea		      nop
+    155  f836		       ea		      nop
+    156  f837		       ea		      nop
+    157  f838		       ea		      nop
+    158  f839
+    159  f839		       e8		      inx
+    160  f83a
+    161  f83a		       86 09		      stx	COLUBK
+    162  f83c
+    163  f83c		       ea		      nop
+    164  f83d		       ea		      nop
+    165  f83e		       ea		      nop
+    166  f83f
+    167  f83f		       88		      dey
+    168  f840		       84 09		      sty	COLUBK
+    169  f842
+    170  f842		       85 02		      sta	WSYNC
+    171  f844
+    172  f844
+    173  f844
+    147  f844					      REPEND
+    148  f844
+    149  f844		       ea		      nop
+    150  f845		       ea		      nop
+    151  f846		       ea		      nop
+    152  f847		       ea		      nop
+    153  f848		       ea		      nop
+    154  f849		       ea		      nop
+    155  f84a		       ea		      nop
+    156  f84b		       ea		      nop
+    157  f84c		       ea		      nop
+    158  f84d
+    159  f84d		       e8		      inx
+    160  f84e
+    161  f84e		       86 09		      stx	COLUBK
+    162  f850
+    163  f850		       ea		      nop
+    164  f851		       ea		      nop
+    165  f852		       ea		      nop
+    166  f853
+    167  f853		       88		      dey
+    168  f854		       84 09		      sty	COLUBK
+    169  f856
+    170  f856		       85 02		      sta	WSYNC
+    171  f858
+    172  f858
+    173  f858
+    147  f858					      REPEND
+    148  f858
+    149  f858		       ea		      nop
+    150  f859		       ea		      nop
+    151  f85a		       ea		      nop
+    152  f85b		       ea		      nop
+    153  f85c		       ea		      nop
+    154  f85d		       ea		      nop
+    155  f85e		       ea		      nop
+    156  f85f		       ea		      nop
+    157  f860		       ea		      nop
+    158  f861
+    159  f861		       e8		      inx
+    160  f862
+    161  f862		       86 09		      stx	COLUBK
+    162  f864
+    163  f864		       ea		      nop
+    164  f865		       ea		      nop
+    165  f866		       ea		      nop
+    166  f867
+    167  f867		       88		      dey
+    168  f868		       84 09		      sty	COLUBK
+    169  f86a
+    170  f86a		       85 02		      sta	WSYNC
+    171  f86c
+    172  f86c
+    173  f86c
+    147  f86c					      REPEND
+    148  f86c
+    149  f86c		       ea		      nop
+    150  f86d		       ea		      nop
+    151  f86e		       ea		      nop
+    152  f86f		       ea		      nop
+    153  f870		       ea		      nop
+    154  f871		       ea		      nop
+    155  f872		       ea		      nop
+    156  f873		       ea		      nop
+    157  f874		       ea		      nop
+    158  f875
+    159  f875		       e8		      inx
+    160  f876
+    161  f876		       86 09		      stx	COLUBK
+    162  f878
+    163  f878		       ea		      nop
+    164  f879		       ea		      nop
+    165  f87a		       ea		      nop
+    166  f87b
+    167  f87b		       88		      dey
+    168  f87c		       84 09		      sty	COLUBK
+    169  f87e
+    170  f87e		       85 02		      sta	WSYNC
+    171  f880
+    172  f880
+    173  f880
+    147  f880					      REPEND
+    148  f880
+    149  f880		       ea		      nop
+    150  f881		       ea		      nop
+    151  f882		       ea		      nop
+    152  f883		       ea		      nop
+    153  f884		       ea		      nop
+    154  f885		       ea		      nop
+    155  f886		       ea		      nop
+    156  f887		       ea		      nop
+    157  f888		       ea		      nop
+    158  f889
+    159  f889		       e8		      inx
+    160  f88a
+    161  f88a		       86 09		      stx	COLUBK
+    162  f88c
+    163  f88c		       ea		      nop
+    164  f88d		       ea		      nop
+    165  f88e		       ea		      nop
+    166  f88f
+    167  f88f		       88		      dey
+    168  f890		       84 09		      sty	COLUBK
+    169  f892
+    170  f892		       85 02		      sta	WSYNC
+    171  f894
+    172  f894
+    173  f894
+    147  f894					      REPEND
+    148  f894
+    149  f894		       ea		      nop
+    150  f895		       ea		      nop
+    151  f896		       ea		      nop
+    152  f897		       ea		      nop
+    153  f898		       ea		      nop
+    154  f899		       ea		      nop
+    155  f89a		       ea		      nop
+    156  f89b		       ea		      nop
+    157  f89c		       ea		      nop
+    158  f89d
+    159  f89d		       e8		      inx
+    160  f89e
+    161  f89e		       86 09		      stx	COLUBK
+    162  f8a0
+    163  f8a0		       ea		      nop
+    164  f8a1		       ea		      nop
+    165  f8a2		       ea		      nop
+    166  f8a3
+    167  f8a3		       88		      dey
+    168  f8a4		       84 09		      sty	COLUBK
+    169  f8a6
+    170  f8a6		       85 02		      sta	WSYNC
+    171  f8a8
+    172  f8a8
+    173  f8a8
+    147  f8a8					      REPEND
+    148  f8a8
+    149  f8a8		       ea		      nop
+    150  f8a9		       ea		      nop
+    151  f8aa		       ea		      nop
+    152  f8ab		       ea		      nop
+    153  f8ac		       ea		      nop
+    154  f8ad		       ea		      nop
+    155  f8ae		       ea		      nop
+    156  f8af		       ea		      nop
+    157  f8b0		       ea		      nop
+    158  f8b1
+    159  f8b1		       e8		      inx
+    160  f8b2
+    161  f8b2		       86 09		      stx	COLUBK
+    162  f8b4
+    163  f8b4		       ea		      nop
+    164  f8b5		       ea		      nop
+    165  f8b6		       ea		      nop
+    166  f8b7
+    167  f8b7		       88		      dey
+    168  f8b8		       84 09		      sty	COLUBK
+    169  f8ba
+    170  f8ba		       85 02		      sta	WSYNC
+    171  f8bc
+    172  f8bc
+    173  f8bc
+    147  f8bc					      REPEND
+    148  f8bc
+    149  f8bc		       ea		      nop
+    150  f8bd		       ea		      nop
+    151  f8be		       ea		      nop
+    152  f8bf		       ea		      nop
+    153  f8c0		       ea		      nop
+    154  f8c1		       ea		      nop
+    155  f8c2		       ea		      nop
+    156  f8c3		       ea		      nop
+    157  f8c4		       ea		      nop
+    158  f8c5
+    159  f8c5		       e8		      inx
+    160  f8c6
+    161  f8c6		       86 09		      stx	COLUBK
+    162  f8c8
+    163  f8c8		       ea		      nop
+    164  f8c9		       ea		      nop
+    165  f8ca		       ea		      nop
+    166  f8cb
+    167  f8cb		       88		      dey
+    168  f8cc		       84 09		      sty	COLUBK
+    169  f8ce
+    170  f8ce		       85 02		      sta	WSYNC
+    171  f8d0
+    172  f8d0
+    173  f8d0
+    147  f8d0					      REPEND
+    148  f8d0
+    149  f8d0		       ea		      nop
+    150  f8d1		       ea		      nop
+    151  f8d2		       ea		      nop
+    152  f8d3		       ea		      nop
+    153  f8d4		       ea		      nop
+    154  f8d5		       ea		      nop
+    155  f8d6		       ea		      nop
+    156  f8d7		       ea		      nop
+    157  f8d8		       ea		      nop
+    158  f8d9
+    159  f8d9		       e8		      inx
+    160  f8da
+    161  f8da		       86 09		      stx	COLUBK
+    162  f8dc
+    163  f8dc		       ea		      nop
+    164  f8dd		       ea		      nop
+    165  f8de		       ea		      nop
+    166  f8df
+    167  f8df		       88		      dey
+    168  f8e0		       84 09		      sty	COLUBK
+    169  f8e2
+    170  f8e2		       85 02		      sta	WSYNC
+    171  f8e4
+    172  f8e4
+    173  f8e4
+    147  f8e4					      REPEND
+    148  f8e4
+    149  f8e4		       ea		      nop
+    150  f8e5		       ea		      nop
+    151  f8e6		       ea		      nop
+    152  f8e7		       ea		      nop
+    153  f8e8		       ea		      nop
+    154  f8e9		       ea		      nop
+    155  f8ea		       ea		      nop
+    156  f8eb		       ea		      nop
+    157  f8ec		       ea		      nop
+    158  f8ed
+    159  f8ed		       e8		      inx
+    160  f8ee
+    161  f8ee		       86 09		      stx	COLUBK
+    162  f8f0
+    163  f8f0		       ea		      nop
+    164  f8f1		       ea		      nop
+    165  f8f2		       ea		      nop
+    166  f8f3
+    167  f8f3		       88		      dey
+    168  f8f4		       84 09		      sty	COLUBK
+    169  f8f6
+    170  f8f6		       85 02		      sta	WSYNC
+    171  f8f8
+    172  f8f8
+    173  f8f8
+    147  f8f8					      REPEND
+    148  f8f8
+    149  f8f8		       ea		      nop
+    150  f8f9		       ea		      nop
+    151  f8fa		       ea		      nop
+    152  f8fb		       ea		      nop
+    153  f8fc		       ea		      nop
+    154  f8fd		       ea		      nop
+    155  f8fe		       ea		      nop
+    156  f8ff		       ea		      nop
+    157  f900		       ea		      nop
+    158  f901
+    159  f901		       e8		      inx
+    160  f902
+    161  f902		       86 09		      stx	COLUBK
+    162  f904
+    163  f904		       ea		      nop
+    164  f905		       ea		      nop
+    165  f906		       ea		      nop
+    166  f907
+    167  f907		       88		      dey
+    168  f908		       84 09		      sty	COLUBK
+    169  f90a
+    170  f90a		       85 02		      sta	WSYNC
+    171  f90c
+    172  f90c
+    173  f90c
+    147  f90c					      REPEND
+    148  f90c
+    149  f90c		       ea		      nop
+    150  f90d		       ea		      nop
+    151  f90e		       ea		      nop
+    152  f90f		       ea		      nop
+    153  f910		       ea		      nop
+    154  f911		       ea		      nop
+    155  f912		       ea		      nop
+    156  f913		       ea		      nop
+    157  f914		       ea		      nop
+    158  f915
+    159  f915		       e8		      inx
+    160  f916
+    161  f916		       86 09		      stx	COLUBK
+    162  f918
+    163  f918		       ea		      nop
+    164  f919		       ea		      nop
+    165  f91a		       ea		      nop
+    166  f91b
+    167  f91b		       88		      dey
+    168  f91c		       84 09		      sty	COLUBK
+    169  f91e
+    170  f91e		       85 02		      sta	WSYNC
+    171  f920
+    172  f920
+    173  f920
+    147  f920					      REPEND
+    148  f920
+    149  f920		       ea		      nop
+    150  f921		       ea		      nop
+    151  f922		       ea		      nop
+    152  f923		       ea		      nop
+    153  f924		       ea		      nop
+    154  f925		       ea		      nop
+    155  f926		       ea		      nop
+    156  f927		       ea		      nop
+    157  f928		       ea		      nop
+    158  f929
+    159  f929		       e8		      inx
+    160  f92a
+    161  f92a		       86 09		      stx	COLUBK
+    162  f92c
+    163  f92c		       ea		      nop
+    164  f92d		       ea		      nop
+    165  f92e		       ea		      nop
+    166  f92f
+    167  f92f		       88		      dey
+    168  f930		       84 09		      sty	COLUBK
+    169  f932
+    170  f932		       85 02		      sta	WSYNC
+    171  f934
+    172  f934
+    173  f934
+    147  f934					      REPEND
+    148  f934
+    149  f934		       ea		      nop
+    150  f935		       ea		      nop
+    151  f936		       ea		      nop
+    152  f937		       ea		      nop
+    153  f938		       ea		      nop
+    154  f939		       ea		      nop
+    155  f93a		       ea		      nop
+    156  f93b		       ea		      nop
+    157  f93c		       ea		      nop
+    158  f93d
+    159  f93d		       e8		      inx
+    160  f93e
+    161  f93e		       86 09		      stx	COLUBK
+    162  f940
+    163  f940		       ea		      nop
+    164  f941		       ea		      nop
+    165  f942		       ea		      nop
+    166  f943
+    167  f943		       88		      dey
+    168  f944		       84 09		      sty	COLUBK
+    169  f946
+    170  f946		       85 02		      sta	WSYNC
+    171  f948
+    172  f948
+    173  f948
+    147  f948					      REPEND
+    148  f948
+    149  f948		       ea		      nop
+    150  f949		       ea		      nop
+    151  f94a		       ea		      nop
+    152  f94b		       ea		      nop
+    153  f94c		       ea		      nop
+    154  f94d		       ea		      nop
+    155  f94e		       ea		      nop
+    156  f94f		       ea		      nop
+    157  f950		       ea		      nop
+    158  f951
+    159  f951		       e8		      inx
+    160  f952
+    161  f952		       86 09		      stx	COLUBK
+    162  f954
+    163  f954		       ea		      nop
+    164  f955		       ea		      nop
+    165  f956		       ea		      nop
+    166  f957
+    167  f957		       88		      dey
+    168  f958		       84 09		      sty	COLUBK
+    169  f95a
+    170  f95a		       85 02		      sta	WSYNC
+    171  f95c
+    172  f95c
+    173  f95c
+    147  f95c					      REPEND
+    148  f95c
+    149  f95c		       ea		      nop
+    150  f95d		       ea		      nop
+    151  f95e		       ea		      nop
+    152  f95f		       ea		      nop
+    153  f960		       ea		      nop
+    154  f961		       ea		      nop
+    155  f962		       ea		      nop
+    156  f963		       ea		      nop
+    157  f964		       ea		      nop
+    158  f965
+    159  f965		       e8		      inx
+    160  f966
+    161  f966		       86 09		      stx	COLUBK
+    162  f968
+    163  f968		       ea		      nop
+    164  f969		       ea		      nop
+    165  f96a		       ea		      nop
+    166  f96b
+    167  f96b		       88		      dey
+    168  f96c		       84 09		      sty	COLUBK
+    169  f96e
+    170  f96e		       85 02		      sta	WSYNC
+    171  f970
+    172  f970
+    173  f970
+    147  f970					      REPEND
+    148  f970
+    149  f970		       ea		      nop
+    150  f971		       ea		      nop
+    151  f972		       ea		      nop
+    152  f973		       ea		      nop
+    153  f974		       ea		      nop
+    154  f975		       ea		      nop
+    155  f976		       ea		      nop
+    156  f977		       ea		      nop
+    157  f978		       ea		      nop
+    158  f979
+    159  f979		       e8		      inx
+    160  f97a
+    161  f97a		       86 09		      stx	COLUBK
+    162  f97c
+    163  f97c		       ea		      nop
+    164  f97d		       ea		      nop
+    165  f97e		       ea		      nop
+    166  f97f
+    167  f97f		       88		      dey
+    168  f980		       84 09		      sty	COLUBK
+    169  f982
+    170  f982		       85 02		      sta	WSYNC
+    171  f984
+    172  f984
+    173  f984
+    147  f984					      REPEND
+    148  f984
+    149  f984		       ea		      nop
+    150  f985		       ea		      nop
+    151  f986		       ea		      nop
+    152  f987		       ea		      nop
+    153  f988		       ea		      nop
+    154  f989		       ea		      nop
+    155  f98a		       ea		      nop
+    156  f98b		       ea		      nop
+    157  f98c		       ea		      nop
+    158  f98d
+    159  f98d		       e8		      inx
+    160  f98e
+    161  f98e		       86 09		      stx	COLUBK
+    162  f990
+    163  f990		       ea		      nop
+    164  f991		       ea		      nop
+    165  f992		       ea		      nop
+    166  f993
+    167  f993		       88		      dey
+    168  f994		       84 09		      sty	COLUBK
+    169  f996
+    170  f996		       85 02		      sta	WSYNC
+    171  f998
+    172  f998
+    173  f998
+    147  f998					      REPEND
+    148  f998
+    149  f998		       ea		      nop
+    150  f999		       ea		      nop
+    151  f99a		       ea		      nop
+    152  f99b		       ea		      nop
+    153  f99c		       ea		      nop
+    154  f99d		       ea		      nop
+    155  f99e		       ea		      nop
+    156  f99f		       ea		      nop
+    157  f9a0		       ea		      nop
+    158  f9a1
+    159  f9a1		       e8		      inx
+    160  f9a2
+    161  f9a2		       86 09		      stx	COLUBK
+    162  f9a4
+    163  f9a4		       ea		      nop
+    164  f9a5		       ea		      nop
+    165  f9a6		       ea		      nop
+    166  f9a7
+    167  f9a7		       88		      dey
+    168  f9a8		       84 09		      sty	COLUBK
+    169  f9aa
+    170  f9aa		       85 02		      sta	WSYNC
+    171  f9ac
+    172  f9ac
+    173  f9ac
+    147  f9ac					      REPEND
+    148  f9ac
+    149  f9ac		       ea		      nop
+    150  f9ad		       ea		      nop
+    151  f9ae		       ea		      nop
+    152  f9af		       ea		      nop
+    153  f9b0		       ea		      nop
+    154  f9b1		       ea		      nop
+    155  f9b2		       ea		      nop
+    156  f9b3		       ea		      nop
+    157  f9b4		       ea		      nop
+    158  f9b5
+    159  f9b5		       e8		      inx
+    160  f9b6
+    161  f9b6		       86 09		      stx	COLUBK
+    162  f9b8
+    163  f9b8		       ea		      nop
+    164  f9b9		       ea		      nop
+    165  f9ba		       ea		      nop
+    166  f9bb
+    167  f9bb		       88		      dey
+    168  f9bc		       84 09		      sty	COLUBK
+    169  f9be
+    170  f9be		       85 02		      sta	WSYNC
+    171  f9c0
+    172  f9c0
+    173  f9c0
+    147  f9c0					      REPEND
+    148  f9c0
+    149  f9c0		       ea		      nop
+    150  f9c1		       ea		      nop
+    151  f9c2		       ea		      nop
+    152  f9c3		       ea		      nop
+    153  f9c4		       ea		      nop
+    154  f9c5		       ea		      nop
+    155  f9c6		       ea		      nop
+    156  f9c7		       ea		      nop
+    157  f9c8		       ea		      nop
+    158  f9c9
+    159  f9c9		       e8		      inx
+    160  f9ca
+    161  f9ca		       86 09		      stx	COLUBK
+    162  f9cc
+    163  f9cc		       ea		      nop
+    164  f9cd		       ea		      nop
+    165  f9ce		       ea		      nop
+    166  f9cf
+    167  f9cf		       88		      dey
+    168  f9d0		       84 09		      sty	COLUBK
+    169  f9d2
+    170  f9d2		       85 02		      sta	WSYNC
+    171  f9d4
+    172  f9d4
+    173  f9d4
+    147  f9d4					      REPEND
+    148  f9d4
+    149  f9d4		       ea		      nop
+    150  f9d5		       ea		      nop
+    151  f9d6		       ea		      nop
+    152  f9d7		       ea		      nop
+    153  f9d8		       ea		      nop
+    154  f9d9		       ea		      nop
+    155  f9da		       ea		      nop
+    156  f9db		       ea		      nop
+    157  f9dc		       ea		      nop
+    158  f9dd
+    159  f9dd		       e8		      inx
+    160  f9de
+    161  f9de		       86 09		      stx	COLUBK
+    162  f9e0
+    163  f9e0		       ea		      nop
+    164  f9e1		       ea		      nop
+    165  f9e2		       ea		      nop
+    166  f9e3
+    167  f9e3		       88		      dey
+    168  f9e4		       84 09		      sty	COLUBK
+    169  f9e6
+    170  f9e6		       85 02		      sta	WSYNC
+    171  f9e8
+    172  f9e8
+    173  f9e8
+    147  f9e8					      REPEND
+    148  f9e8
+    149  f9e8		       ea		      nop
+    150  f9e9		       ea		      nop
+    151  f9ea		       ea		      nop
+    152  f9eb		       ea		      nop
+    153  f9ec		       ea		      nop
+    154  f9ed		       ea		      nop
+    155  f9ee		       ea		      nop
+    156  f9ef		       ea		      nop
+    157  f9f0		       ea		      nop
+    158  f9f1
+    159  f9f1		       e8		      inx
+    160  f9f2
+    161  f9f2		       86 09		      stx	COLUBK
+    162  f9f4
+    163  f9f4		       ea		      nop
+    164  f9f5		       ea		      nop
+    165  f9f6		       ea		      nop
+    166  f9f7
+    167  f9f7		       88		      dey
+    168  f9f8		       84 09		      sty	COLUBK
+    169  f9fa
+    170  f9fa		       85 02		      sta	WSYNC
+    171  f9fc
+    172  f9fc
+    173  f9fc
+    147  f9fc					      REPEND
+    148  f9fc
+    149  f9fc		       ea		      nop
+    150  f9fd		       ea		      nop
+    151  f9fe		       ea		      nop
+    152  f9ff		       ea		      nop
+    153  fa00		       ea		      nop
+    154  fa01		       ea		      nop
+    155  fa02		       ea		      nop
+    156  fa03		       ea		      nop
+    157  fa04		       ea		      nop
+    158  fa05
+    159  fa05		       e8		      inx
+    160  fa06
+    161  fa06		       86 09		      stx	COLUBK
+    162  fa08
+    163  fa08		       ea		      nop
+    164  fa09		       ea		      nop
+    165  fa0a		       ea		      nop
+    166  fa0b
+    167  fa0b		       88		      dey
+    168  fa0c		       84 09		      sty	COLUBK
+    169  fa0e
+    170  fa0e		       85 02		      sta	WSYNC
+    171  fa10
+    172  fa10
+    173  fa10
+    147  fa10					      REPEND
+    148  fa10
+    149  fa10		       ea		      nop
+    150  fa11		       ea		      nop
+    151  fa12		       ea		      nop
+    152  fa13		       ea		      nop
+    153  fa14		       ea		      nop
+    154  fa15		       ea		      nop
+    155  fa16		       ea		      nop
+    156  fa17		       ea		      nop
+    157  fa18		       ea		      nop
+    158  fa19
+    159  fa19		       e8		      inx
+    160  fa1a
+    161  fa1a		       86 09		      stx	COLUBK
+    162  fa1c
+    163  fa1c		       ea		      nop
+    164  fa1d		       ea		      nop
+    165  fa1e		       ea		      nop
+    166  fa1f
+    167  fa1f		       88		      dey
+    168  fa20		       84 09		      sty	COLUBK
+    169  fa22
+    170  fa22		       85 02		      sta	WSYNC
+    171  fa24
+    172  fa24
+    173  fa24
+    147  fa24					      REPEND
+    148  fa24
+    149  fa24		       ea		      nop
+    150  fa25		       ea		      nop
+    151  fa26		       ea		      nop
+    152  fa27		       ea		      nop
+    153  fa28		       ea		      nop
+    154  fa29		       ea		      nop
+    155  fa2a		       ea		      nop
+    156  fa2b		       ea		      nop
+    157  fa2c		       ea		      nop
+    158  fa2d
+    159  fa2d		       e8		      inx
+    160  fa2e
+    161  fa2e		       86 09		      stx	COLUBK
+    162  fa30
+    163  fa30		       ea		      nop
+    164  fa31		       ea		      nop
+    165  fa32		       ea		      nop
+    166  fa33
+    167  fa33		       88		      dey
+    168  fa34		       84 09		      sty	COLUBK
+    169  fa36
+    170  fa36		       85 02		      sta	WSYNC
+    171  fa38
+    172  fa38
+    173  fa38
+    147  fa38					      REPEND
+    148  fa38
+    149  fa38		       ea		      nop
+    150  fa39		       ea		      nop
+    151  fa3a		       ea		      nop
+    152  fa3b		       ea		      nop
+    153  fa3c		       ea		      nop
+    154  fa3d		       ea		      nop
+    155  fa3e		       ea		      nop
+    156  fa3f		       ea		      nop
+    157  fa40		       ea		      nop
+    158  fa41
+    159  fa41		       e8		      inx
+    160  fa42
+    161  fa42		       86 09		      stx	COLUBK
+    162  fa44
+    163  fa44		       ea		      nop
+    164  fa45		       ea		      nop
+    165  fa46		       ea		      nop
+    166  fa47
+    167  fa47		       88		      dey
+    168  fa48		       84 09		      sty	COLUBK
+    169  fa4a
+    170  fa4a		       85 02		      sta	WSYNC
+    171  fa4c
+    172  fa4c
+    173  fa4c
+    147  fa4c					      REPEND
+    148  fa4c
+    149  fa4c		       ea		      nop
+    150  fa4d		       ea		      nop
+    151  fa4e		       ea		      nop
+    152  fa4f		       ea		      nop
+    153  fa50		       ea		      nop
+    154  fa51		       ea		      nop
+    155  fa52		       ea		      nop
+    156  fa53		       ea		      nop
+    157  fa54		       ea		      nop
+    158  fa55
+    159  fa55		       e8		      inx
+    160  fa56
+    161  fa56		       86 09		      stx	COLUBK
+    162  fa58
+    163  fa58		       ea		      nop
+    164  fa59		       ea		      nop
+    165  fa5a		       ea		      nop
+    166  fa5b
+    167  fa5b		       88		      dey
+    168  fa5c		       84 09		      sty	COLUBK
+    169  fa5e
+    170  fa5e		       85 02		      sta	WSYNC
+    171  fa60
+    172  fa60
+    173  fa60
+    147  fa60					      REPEND
+    148  fa60
+    149  fa60		       ea		      nop
+    150  fa61		       ea		      nop
+    151  fa62		       ea		      nop
+    152  fa63		       ea		      nop
+    153  fa64		       ea		      nop
+    154  fa65		       ea		      nop
+    155  fa66		       ea		      nop
+    156  fa67		       ea		      nop
+    157  fa68		       ea		      nop
+    158  fa69
+    159  fa69		       e8		      inx
+    160  fa6a
+    161  fa6a		       86 09		      stx	COLUBK
+    162  fa6c
+    163  fa6c		       ea		      nop
+    164  fa6d		       ea		      nop
+    165  fa6e		       ea		      nop
+    166  fa6f
+    167  fa6f		       88		      dey
+    168  fa70		       84 09		      sty	COLUBK
+    169  fa72
+    170  fa72		       85 02		      sta	WSYNC
+    171  fa74
+    172  fa74
+    173  fa74
+    147  fa74					      REPEND
+    148  fa74
+    149  fa74		       ea		      nop
+    150  fa75		       ea		      nop
+    151  fa76		       ea		      nop
+    152  fa77		       ea		      nop
+    153  fa78		       ea		      nop
+    154  fa79		       ea		      nop
+    155  fa7a		       ea		      nop
+    156  fa7b		       ea		      nop
+    157  fa7c		       ea		      nop
+    158  fa7d
+    159  fa7d		       e8		      inx
+    160  fa7e
+    161  fa7e		       86 09		      stx	COLUBK
+    162  fa80
+    163  fa80		       ea		      nop
+    164  fa81		       ea		      nop
+    165  fa82		       ea		      nop
+    166  fa83
+    167  fa83		       88		      dey
+    168  fa84		       84 09		      sty	COLUBK
+    169  fa86
+    170  fa86		       85 02		      sta	WSYNC
+    171  fa88
+    172  fa88
+    173  fa88
+    147  fa88					      REPEND
+    148  fa88
+    149  fa88		       ea		      nop
+    150  fa89		       ea		      nop
+    151  fa8a		       ea		      nop
+    152  fa8b		       ea		      nop
+    153  fa8c		       ea		      nop
+    154  fa8d		       ea		      nop
+    155  fa8e		       ea		      nop
+    156  fa8f		       ea		      nop
+    157  fa90		       ea		      nop
+    158  fa91
+    159  fa91		       e8		      inx
+    160  fa92
+    161  fa92		       86 09		      stx	COLUBK
+    162  fa94
+    163  fa94		       ea		      nop
+    164  fa95		       ea		      nop
+    165  fa96		       ea		      nop
+    166  fa97
+    167  fa97		       88		      dey
+    168  fa98		       84 09		      sty	COLUBK
+    169  fa9a
+    170  fa9a		       85 02		      sta	WSYNC
+    171  fa9c
+    172  fa9c
+    173  fa9c
+    147  fa9c					      REPEND
+    148  fa9c
+    149  fa9c		       ea		      nop
+    150  fa9d		       ea		      nop
+    151  fa9e		       ea		      nop
+    152  fa9f		       ea		      nop
+    153  faa0		       ea		      nop
+    154  faa1		       ea		      nop
+    155  faa2		       ea		      nop
+    156  faa3		       ea		      nop
+    157  faa4		       ea		      nop
+    158  faa5
+    159  faa5		       e8		      inx
+    160  faa6
+    161  faa6		       86 09		      stx	COLUBK
+    162  faa8
+    163  faa8		       ea		      nop
+    164  faa9		       ea		      nop
+    165  faaa		       ea		      nop
+    166  faab
+    167  faab		       88		      dey
+    168  faac		       84 09		      sty	COLUBK
+    169  faae
+    170  faae		       85 02		      sta	WSYNC
+    171  fab0
+    172  fab0
+    173  fab0
+    147  fab0					      REPEND
+    148  fab0
+    149  fab0		       ea		      nop
+    150  fab1		       ea		      nop
+    151  fab2		       ea		      nop
+    152  fab3		       ea		      nop
+    153  fab4		       ea		      nop
+    154  fab5		       ea		      nop
+    155  fab6		       ea		      nop
+    156  fab7		       ea		      nop
+    157  fab8		       ea		      nop
+    158  fab9
+    159  fab9		       e8		      inx
+    160  faba
+    161  faba		       86 09		      stx	COLUBK
+    162  fabc
+    163  fabc		       ea		      nop
+    164  fabd		       ea		      nop
+    165  fabe		       ea		      nop
+    166  fabf
+    167  fabf		       88		      dey
+    168  fac0		       84 09		      sty	COLUBK
+    169  fac2
+    170  fac2		       85 02		      sta	WSYNC
+    171  fac4
+    172  fac4
+    173  fac4
+    147  fac4					      REPEND
+    148  fac4
+    149  fac4		       ea		      nop
+    150  fac5		       ea		      nop
+    151  fac6		       ea		      nop
+    152  fac7		       ea		      nop
+    153  fac8		       ea		      nop
+    154  fac9		       ea		      nop
+    155  faca		       ea		      nop
+    156  facb		       ea		      nop
+    157  facc		       ea		      nop
+    158  facd
+    159  facd		       e8		      inx
+    160  face
+    161  face		       86 09		      stx	COLUBK
+    162  fad0
+    163  fad0		       ea		      nop
+    164  fad1		       ea		      nop
+    165  fad2		       ea		      nop
+    166  fad3
+    167  fad3		       88		      dey
+    168  fad4		       84 09		      sty	COLUBK
+    169  fad6
+    170  fad6		       85 02		      sta	WSYNC
+    171  fad8
+    172  fad8
+    173  fad8
+    147  fad8					      REPEND
+    148  fad8
+    149  fad8		       ea		      nop
+    150  fad9		       ea		      nop
+    151  fada		       ea		      nop
+    152  fadb		       ea		      nop
+    153  fadc		       ea		      nop
+    154  fadd		       ea		      nop
+    155  fade		       ea		      nop
+    156  fadf		       ea		      nop
+    157  fae0		       ea		      nop
+    158  fae1
+    159  fae1		       e8		      inx
+    160  fae2
+    161  fae2		       86 09		      stx	COLUBK
+    162  fae4
+    163  fae4		       ea		      nop
+    164  fae5		       ea		      nop
+    165  fae6		       ea		      nop
+    166  fae7
+    167  fae7		       88		      dey
+    168  fae8		       84 09		      sty	COLUBK
+    169  faea
+    170  faea		       85 02		      sta	WSYNC
+    171  faec
+    172  faec
+    173  faec
+    147  faec					      REPEND
+    148  faec
+    149  faec		       ea		      nop
+    150  faed		       ea		      nop
+    151  faee		       ea		      nop
+    152  faef		       ea		      nop
+    153  faf0		       ea		      nop
+    154  faf1		       ea		      nop
+    155  faf2		       ea		      nop
+    156  faf3		       ea		      nop
+    157  faf4		       ea		      nop
+    158  faf5
+    159  faf5		       e8		      inx
+    160  faf6
+    161  faf6		       86 09		      stx	COLUBK
+    162  faf8
+    163  faf8		       ea		      nop
+    164  faf9		       ea		      nop
+    165  fafa		       ea		      nop
+    166  fafb
+    167  fafb		       88		      dey
+    168  fafc		       84 09		      sty	COLUBK
+    169  fafe
+    170  fafe		       85 02		      sta	WSYNC
+    171  fb00
+    172  fb00
+    173  fb00
+    147  fb00					      REPEND
+    148  fb00
+    149  fb00		       ea		      nop
+    150  fb01		       ea		      nop
+    151  fb02		       ea		      nop
+    152  fb03		       ea		      nop
+    153  fb04		       ea		      nop
+    154  fb05		       ea		      nop
+    155  fb06		       ea		      nop
+    156  fb07		       ea		      nop
+    157  fb08		       ea		      nop
+    158  fb09
+    159  fb09		       e8		      inx
+    160  fb0a
+    161  fb0a		       86 09		      stx	COLUBK
+    162  fb0c
+    163  fb0c		       ea		      nop
+    164  fb0d		       ea		      nop
+    165  fb0e		       ea		      nop
+    166  fb0f
+    167  fb0f		       88		      dey
+    168  fb10		       84 09		      sty	COLUBK
+    169  fb12
+    170  fb12		       85 02		      sta	WSYNC
+    171  fb14
+    172  fb14
+    173  fb14
+    147  fb14					      REPEND
+    148  fb14
+    149  fb14		       ea		      nop
+    150  fb15		       ea		      nop
+    151  fb16		       ea		      nop
+    152  fb17		       ea		      nop
+    153  fb18		       ea		      nop
+    154  fb19		       ea		      nop
+    155  fb1a		       ea		      nop
+    156  fb1b		       ea		      nop
+    157  fb1c		       ea		      nop
+    158  fb1d
+    159  fb1d		       e8		      inx
+    160  fb1e
+    161  fb1e		       86 09		      stx	COLUBK
+    162  fb20
+    163  fb20		       ea		      nop
+    164  fb21		       ea		      nop
+    165  fb22		       ea		      nop
+    166  fb23
+    167  fb23		       88		      dey
+    168  fb24		       84 09		      sty	COLUBK
+    169  fb26
+    170  fb26		       85 02		      sta	WSYNC
+    171  fb28
+    172  fb28
+    173  fb28
+    147  fb28					      REPEND
+    148  fb28
+    149  fb28		       ea		      nop
+    150  fb29		       ea		      nop
+    151  fb2a		       ea		      nop
+    152  fb2b		       ea		      nop
+    153  fb2c		       ea		      nop
+    154  fb2d		       ea		      nop
+    155  fb2e		       ea		      nop
+    156  fb2f		       ea		      nop
+    157  fb30		       ea		      nop
+    158  fb31
+    159  fb31		       e8		      inx
+    160  fb32
+    161  fb32		       86 09		      stx	COLUBK
+    162  fb34
+    163  fb34		       ea		      nop
+    164  fb35		       ea		      nop
+    165  fb36		       ea		      nop
+    166  fb37
+    167  fb37		       88		      dey
+    168  fb38		       84 09		      sty	COLUBK
+    169  fb3a
+    170  fb3a		       85 02		      sta	WSYNC
+    171  fb3c
+    172  fb3c
+    173  fb3c
+    147  fb3c					      REPEND
+    148  fb3c
+    149  fb3c		       ea		      nop
+    150  fb3d		       ea		      nop
+    151  fb3e		       ea		      nop
+    152  fb3f		       ea		      nop
+    153  fb40		       ea		      nop
+    154  fb41		       ea		      nop
+    155  fb42		       ea		      nop
+    156  fb43		       ea		      nop
+    157  fb44		       ea		      nop
+    158  fb45
+    159  fb45		       e8		      inx
+    160  fb46
+    161  fb46		       86 09		      stx	COLUBK
+    162  fb48
+    163  fb48		       ea		      nop
+    164  fb49		       ea		      nop
+    165  fb4a		       ea		      nop
+    166  fb4b
+    167  fb4b		       88		      dey
+    168  fb4c		       84 09		      sty	COLUBK
+    169  fb4e
+    170  fb4e		       85 02		      sta	WSYNC
+    171  fb50
+    172  fb50
+    173  fb50
+    147  fb50					      REPEND
+    148  fb50
+    149  fb50		       ea		      nop
+    150  fb51		       ea		      nop
+    151  fb52		       ea		      nop
+    152  fb53		       ea		      nop
+    153  fb54		       ea		      nop
+    154  fb55		       ea		      nop
+    155  fb56		       ea		      nop
+    156  fb57		       ea		      nop
+    157  fb58		       ea		      nop
+    158  fb59
+    159  fb59		       e8		      inx
+    160  fb5a
+    161  fb5a		       86 09		      stx	COLUBK
+    162  fb5c
+    163  fb5c		       ea		      nop
+    164  fb5d		       ea		      nop
+    165  fb5e		       ea		      nop
+    166  fb5f
+    167  fb5f		       88		      dey
+    168  fb60		       84 09		      sty	COLUBK
+    169  fb62
+    170  fb62		       85 02		      sta	WSYNC
+    171  fb64
+    172  fb64
+    173  fb64
+    147  fb64					      REPEND
+    148  fb64
+    149  fb64		       ea		      nop
+    150  fb65		       ea		      nop
+    151  fb66		       ea		      nop
+    152  fb67		       ea		      nop
+    153  fb68		       ea		      nop
+    154  fb69		       ea		      nop
+    155  fb6a		       ea		      nop
+    156  fb6b		       ea		      nop
+    157  fb6c		       ea		      nop
+    158  fb6d
+    159  fb6d		       e8		      inx
+    160  fb6e
+    161  fb6e		       86 09		      stx	COLUBK
+    162  fb70
+    163  fb70		       ea		      nop
+    164  fb71		       ea		      nop
+    165  fb72		       ea		      nop
+    166  fb73
+    167  fb73		       88		      dey
+    168  fb74		       84 09		      sty	COLUBK
+    169  fb76
+    170  fb76		       85 02		      sta	WSYNC
+    171  fb78
+    172  fb78
+    173  fb78
+    147  fb78					      REPEND
+    148  fb78
+    149  fb78		       ea		      nop
+    150  fb79		       ea		      nop
+    151  fb7a		       ea		      nop
+    152  fb7b		       ea		      nop
+    153  fb7c		       ea		      nop
+    154  fb7d		       ea		      nop
+    155  fb7e		       ea		      nop
+    156  fb7f		       ea		      nop
+    157  fb80		       ea		      nop
+    158  fb81
+    159  fb81		       e8		      inx
+    160  fb82
+    161  fb82		       86 09		      stx	COLUBK
+    162  fb84
+    163  fb84		       ea		      nop
+    164  fb85		       ea		      nop
+    165  fb86		       ea		      nop
+    166  fb87
+    167  fb87		       88		      dey
+    168  fb88		       84 09		      sty	COLUBK
+    169  fb8a
+    170  fb8a		       85 02		      sta	WSYNC
+    171  fb8c
+    172  fb8c
+    173  fb8c
+    147  fb8c					      REPEND
+    148  fb8c
+    149  fb8c		       ea		      nop
+    150  fb8d		       ea		      nop
+    151  fb8e		       ea		      nop
+    152  fb8f		       ea		      nop
+    153  fb90		       ea		      nop
+    154  fb91		       ea		      nop
+    155  fb92		       ea		      nop
+    156  fb93		       ea		      nop
+    157  fb94		       ea		      nop
+    158  fb95
+    159  fb95		       e8		      inx
+    160  fb96
+    161  fb96		       86 09		      stx	COLUBK
+    162  fb98
+    163  fb98		       ea		      nop
+    164  fb99		       ea		      nop
+    165  fb9a		       ea		      nop
+    166  fb9b
+    167  fb9b		       88		      dey
+    168  fb9c		       84 09		      sty	COLUBK
+    169  fb9e
+    170  fb9e		       85 02		      sta	WSYNC
+    171  fba0
+    172  fba0
+    173  fba0
+    147  fba0					      REPEND
+    148  fba0
+    149  fba0		       ea		      nop
+    150  fba1		       ea		      nop
+    151  fba2		       ea		      nop
+    152  fba3		       ea		      nop
+    153  fba4		       ea		      nop
+    154  fba5		       ea		      nop
+    155  fba6		       ea		      nop
+    156  fba7		       ea		      nop
+    157  fba8		       ea		      nop
+    158  fba9
+    159  fba9		       e8		      inx
+    160  fbaa
+    161  fbaa		       86 09		      stx	COLUBK
+    162  fbac
+    163  fbac		       ea		      nop
+    164  fbad		       ea		      nop
+    165  fbae		       ea		      nop
+    166  fbaf
+    167  fbaf		       88		      dey
+    168  fbb0		       84 09		      sty	COLUBK
+    169  fbb2
+    170  fbb2		       85 02		      sta	WSYNC
+    171  fbb4
+    172  fbb4
+    173  fbb4
+    147  fbb4					      REPEND
+    148  fbb4
+    149  fbb4		       ea		      nop
+    150  fbb5		       ea		      nop
+    151  fbb6		       ea		      nop
+    152  fbb7		       ea		      nop
+    153  fbb8		       ea		      nop
+    154  fbb9		       ea		      nop
+    155  fbba		       ea		      nop
+    156  fbbb		       ea		      nop
+    157  fbbc		       ea		      nop
+    158  fbbd
+    159  fbbd		       e8		      inx
+    160  fbbe
+    161  fbbe		       86 09		      stx	COLUBK
+    162  fbc0
+    163  fbc0		       ea		      nop
+    164  fbc1		       ea		      nop
+    165  fbc2		       ea		      nop
+    166  fbc3
+    167  fbc3		       88		      dey
+    168  fbc4		       84 09		      sty	COLUBK
+    169  fbc6
+    170  fbc6		       85 02		      sta	WSYNC
+    171  fbc8
+    172  fbc8
+    173  fbc8
+    147  fbc8					      REPEND
+    148  fbc8
+    149  fbc8		       ea		      nop
+    150  fbc9		       ea		      nop
+    151  fbca		       ea		      nop
+    152  fbcb		       ea		      nop
+    153  fbcc		       ea		      nop
+    154  fbcd		       ea		      nop
+    155  fbce		       ea		      nop
+    156  fbcf		       ea		      nop
+    157  fbd0		       ea		      nop
+    158  fbd1
+    159  fbd1		       e8		      inx
+    160  fbd2
+    161  fbd2		       86 09		      stx	COLUBK
+    162  fbd4
+    163  fbd4		       ea		      nop
+    164  fbd5		       ea		      nop
+    165  fbd6		       ea		      nop
+    166  fbd7
+    167  fbd7		       88		      dey
+    168  fbd8		       84 09		      sty	COLUBK
+    169  fbda
+    170  fbda		       85 02		      sta	WSYNC
+    171  fbdc
+    172  fbdc
+    173  fbdc
+    147  fbdc					      REPEND
+    148  fbdc
+    149  fbdc		       ea		      nop
+    150  fbdd		       ea		      nop
+    151  fbde		       ea		      nop
+    152  fbdf		       ea		      nop
+    153  fbe0		       ea		      nop
+    154  fbe1		       ea		      nop
+    155  fbe2		       ea		      nop
+    156  fbe3		       ea		      nop
+    157  fbe4		       ea		      nop
+    158  fbe5
+    159  fbe5		       e8		      inx
+    160  fbe6
+    161  fbe6		       86 09		      stx	COLUBK
+    162  fbe8
+    163  fbe8		       ea		      nop
+    164  fbe9		       ea		      nop
+    165  fbea		       ea		      nop
+    166  fbeb
+    167  fbeb		       88		      dey
+    168  fbec		       84 09		      sty	COLUBK
+    169  fbee
+    170  fbee		       85 02		      sta	WSYNC
+    171  fbf0
+    172  fbf0
+    173  fbf0
+    147  fbf0					      REPEND
+    148  fbf0
+    149  fbf0		       ea		      nop
+    150  fbf1		       ea		      nop
+    151  fbf2		       ea		      nop
+    152  fbf3		       ea		      nop
+    153  fbf4		       ea		      nop
+    154  fbf5		       ea		      nop
+    155  fbf6		       ea		      nop
+    156  fbf7		       ea		      nop
+    157  fbf8		       ea		      nop
+    158  fbf9
+    159  fbf9		       e8		      inx
+    160  fbfa
+    161  fbfa		       86 09		      stx	COLUBK
+    162  fbfc
+    163  fbfc		       ea		      nop
+    164  fbfd		       ea		      nop
+    165  fbfe		       ea		      nop
+    166  fbff
+    167  fbff		       88		      dey
+    168  fc00		       84 09		      sty	COLUBK
+    169  fc02
+    170  fc02		       85 02		      sta	WSYNC
+    171  fc04
+    172  fc04
+    173  fc04
+    147  fc04					      REPEND
+    148  fc04
+    149  fc04		       ea		      nop
+    150  fc05		       ea		      nop
+    151  fc06		       ea		      nop
+    152  fc07		       ea		      nop
+    153  fc08		       ea		      nop
+    154  fc09		       ea		      nop
+    155  fc0a		       ea		      nop
+    156  fc0b		       ea		      nop
+    157  fc0c		       ea		      nop
+    158  fc0d
+    159  fc0d		       e8		      inx
+    160  fc0e
+    161  fc0e		       86 09		      stx	COLUBK
+    162  fc10
+    163  fc10		       ea		      nop
+    164  fc11		       ea		      nop
+    165  fc12		       ea		      nop
+    166  fc13
+    167  fc13		       88		      dey
+    168  fc14		       84 09		      sty	COLUBK
+    169  fc16
+    170  fc16		       85 02		      sta	WSYNC
+    171  fc18
+    172  fc18
+    173  fc18
+    147  fc18					      REPEND
+    148  fc18
+    149  fc18		       ea		      nop
+    150  fc19		       ea		      nop
+    151  fc1a		       ea		      nop
+    152  fc1b		       ea		      nop
+    153  fc1c		       ea		      nop
+    154  fc1d		       ea		      nop
+    155  fc1e		       ea		      nop
+    156  fc1f		       ea		      nop
+    157  fc20		       ea		      nop
+    158  fc21
+    159  fc21		       e8		      inx
+    160  fc22
+    161  fc22		       86 09		      stx	COLUBK
+    162  fc24
+    163  fc24		       ea		      nop
+    164  fc25		       ea		      nop
+    165  fc26		       ea		      nop
+    166  fc27
+    167  fc27		       88		      dey
+    168  fc28		       84 09		      sty	COLUBK
+    169  fc2a
+    170  fc2a		       85 02		      sta	WSYNC
+    171  fc2c
+    172  fc2c
+    173  fc2c
+    147  fc2c					      REPEND
+    148  fc2c
+    149  fc2c		       ea		      nop
+    150  fc2d		       ea		      nop
+    151  fc2e		       ea		      nop
+    152  fc2f		       ea		      nop
+    153  fc30		       ea		      nop
+    154  fc31		       ea		      nop
+    155  fc32		       ea		      nop
+    156  fc33		       ea		      nop
+    157  fc34		       ea		      nop
+    158  fc35
+    159  fc35		       e8		      inx
+    160  fc36
+    161  fc36		       86 09		      stx	COLUBK
+    162  fc38
+    163  fc38		       ea		      nop
+    164  fc39		       ea		      nop
+    165  fc3a		       ea		      nop
+    166  fc3b
+    167  fc3b		       88		      dey
+    168  fc3c		       84 09		      sty	COLUBK
+    169  fc3e
+    170  fc3e		       85 02		      sta	WSYNC
+    171  fc40
+    172  fc40
+    173  fc40
+    147  fc40					      REPEND
+    148  fc40
+    149  fc40		       ea		      nop
+    150  fc41		       ea		      nop
+    151  fc42		       ea		      nop
+    152  fc43		       ea		      nop
+    153  fc44		       ea		      nop
+    154  fc45		       ea		      nop
+    155  fc46		       ea		      nop
+    156  fc47		       ea		      nop
+    157  fc48		       ea		      nop
+    158  fc49
+    159  fc49		       e8		      inx
+    160  fc4a
+    161  fc4a		       86 09		      stx	COLUBK
+    162  fc4c
+    163  fc4c		       ea		      nop
+    164  fc4d		       ea		      nop
+    165  fc4e		       ea		      nop
+    166  fc4f
+    167  fc4f		       88		      dey
+    168  fc50		       84 09		      sty	COLUBK
+    169  fc52
+    170  fc52		       85 02		      sta	WSYNC
+    171  fc54
+    172  fc54
+    173  fc54
+    147  fc54					      REPEND
+    148  fc54
+    149  fc54		       ea		      nop
+    150  fc55		       ea		      nop
+    151  fc56		       ea		      nop
+    152  fc57		       ea		      nop
+    153  fc58		       ea		      nop
+    154  fc59		       ea		      nop
+    155  fc5a		       ea		      nop
+    156  fc5b		       ea		      nop
+    157  fc5c		       ea		      nop
+    158  fc5d
+    159  fc5d		       e8		      inx
+    160  fc5e
+    161  fc5e		       86 09		      stx	COLUBK
+    162  fc60
+    163  fc60		       ea		      nop
+    164  fc61		       ea		      nop
+    165  fc62		       ea		      nop
+    166  fc63
+    167  fc63		       88		      dey
+    168  fc64		       84 09		      sty	COLUBK
+    169  fc66
+    170  fc66		       85 02		      sta	WSYNC
+    171  fc68
+    172  fc68
+    173  fc68
+    147  fc68					      REPEND
+    148  fc68
+    149  fc68		       ea		      nop
+    150  fc69		       ea		      nop
+    151  fc6a		       ea		      nop
+    152  fc6b		       ea		      nop
+    153  fc6c		       ea		      nop
+    154  fc6d		       ea		      nop
+    155  fc6e		       ea		      nop
+    156  fc6f		       ea		      nop
+    157  fc70		       ea		      nop
+    158  fc71
+    159  fc71		       e8		      inx
+    160  fc72
+    161  fc72		       86 09		      stx	COLUBK
+    162  fc74
+    163  fc74		       ea		      nop
+    164  fc75		       ea		      nop
+    165  fc76		       ea		      nop
+    166  fc77
+    167  fc77		       88		      dey
+    168  fc78		       84 09		      sty	COLUBK
+    169  fc7a
+    170  fc7a		       85 02		      sta	WSYNC
+    171  fc7c
+    172  fc7c
+    173  fc7c
+    147  fc7c					      REPEND
+    148  fc7c
+    149  fc7c		       ea		      nop
+    150  fc7d		       ea		      nop
+    151  fc7e		       ea		      nop
+    152  fc7f		       ea		      nop
+    153  fc80		       ea		      nop
+    154  fc81		       ea		      nop
+    155  fc82		       ea		      nop
+    156  fc83		       ea		      nop
+    157  fc84		       ea		      nop
+    158  fc85
+    159  fc85		       e8		      inx
+    160  fc86
+    161  fc86		       86 09		      stx	COLUBK
+    162  fc88
+    163  fc88		       ea		      nop
+    164  fc89		       ea		      nop
+    165  fc8a		       ea		      nop
+    166  fc8b
+    167  fc8b		       88		      dey
+    168  fc8c		       84 09		      sty	COLUBK
+    169  fc8e
+    170  fc8e		       85 02		      sta	WSYNC
+    171  fc90
+    172  fc90
+    173  fc90
+    147  fc90					      REPEND
+    148  fc90
+    149  fc90		       ea		      nop
+    150  fc91		       ea		      nop
+    151  fc92		       ea		      nop
+    152  fc93		       ea		      nop
+    153  fc94		       ea		      nop
+    154  fc95		       ea		      nop
+    155  fc96		       ea		      nop
+    156  fc97		       ea		      nop
+    157  fc98		       ea		      nop
+    158  fc99
+    159  fc99		       e8		      inx
+    160  fc9a
+    161  fc9a		       86 09		      stx	COLUBK
+    162  fc9c
+    163  fc9c		       ea		      nop
+    164  fc9d		       ea		      nop
+    165  fc9e		       ea		      nop
+    166  fc9f
+    167  fc9f		       88		      dey
+    168  fca0		       84 09		      sty	COLUBK
+    169  fca2
+    170  fca2		       85 02		      sta	WSYNC
+    171  fca4
+    172  fca4
+    173  fca4
+    147  fca4					      REPEND
+    148  fca4
+    149  fca4		       ea		      nop
+    150  fca5		       ea		      nop
+    151  fca6		       ea		      nop
+    152  fca7		       ea		      nop
+    153  fca8		       ea		      nop
+    154  fca9		       ea		      nop
+    155  fcaa		       ea		      nop
+    156  fcab		       ea		      nop
+    157  fcac		       ea		      nop
+    158  fcad
+    159  fcad		       e8		      inx
+    160  fcae
+    161  fcae		       86 09		      stx	COLUBK
+    162  fcb0
+    163  fcb0		       ea		      nop
+    164  fcb1		       ea		      nop
+    165  fcb2		       ea		      nop
+    166  fcb3
+    167  fcb3		       88		      dey
+    168  fcb4		       84 09		      sty	COLUBK
+    169  fcb6
+    170  fcb6		       85 02		      sta	WSYNC
+    171  fcb8
+    172  fcb8
+    173  fcb8
+    147  fcb8					      REPEND
+    148  fcb8
+    149  fcb8		       ea		      nop
+    150  fcb9		       ea		      nop
+    151  fcba		       ea		      nop
+    152  fcbb		       ea		      nop
+    153  fcbc		       ea		      nop
+    154  fcbd		       ea		      nop
+    155  fcbe		       ea		      nop
+    156  fcbf		       ea		      nop
+    157  fcc0		       ea		      nop
+    158  fcc1
+    159  fcc1		       e8		      inx
+    160  fcc2
+    161  fcc2		       86 09		      stx	COLUBK
+    162  fcc4
+    163  fcc4		       ea		      nop
+    164  fcc5		       ea		      nop
+    165  fcc6		       ea		      nop
+    166  fcc7
+    167  fcc7		       88		      dey
+    168  fcc8		       84 09		      sty	COLUBK
+    169  fcca
+    170  fcca		       85 02		      sta	WSYNC
+    171  fccc
+    172  fccc
+    173  fccc
+    147  fccc					      REPEND
+    148  fccc
+    149  fccc		       ea		      nop
+    150  fccd		       ea		      nop
+    151  fcce		       ea		      nop
+    152  fccf		       ea		      nop
+    153  fcd0		       ea		      nop
+    154  fcd1		       ea		      nop
+    155  fcd2		       ea		      nop
+    156  fcd3		       ea		      nop
+    157  fcd4		       ea		      nop
+    158  fcd5
+    159  fcd5		       e8		      inx
+    160  fcd6
+    161  fcd6		       86 09		      stx	COLUBK
+    162  fcd8
+    163  fcd8		       ea		      nop
+    164  fcd9		       ea		      nop
+    165  fcda		       ea		      nop
+    166  fcdb
+    167  fcdb		       88		      dey
+    168  fcdc		       84 09		      sty	COLUBK
+    169  fcde
+    170  fcde		       85 02		      sta	WSYNC
+    171  fce0
+    172  fce0
+    173  fce0
+    147  fce0					      REPEND
+    148  fce0
+    149  fce0		       ea		      nop
+    150  fce1		       ea		      nop
+    151  fce2		       ea		      nop
+    152  fce3		       ea		      nop
+    153  fce4		       ea		      nop
+    154  fce5		       ea		      nop
+    155  fce6		       ea		      nop
+    156  fce7		       ea		      nop
+    157  fce8		       ea		      nop
+    158  fce9
+    159  fce9		       e8		      inx
+    160  fcea
+    161  fcea		       86 09		      stx	COLUBK
+    162  fcec
+    163  fcec		       ea		      nop
+    164  fced		       ea		      nop
+    165  fcee		       ea		      nop
+    166  fcef
+    167  fcef		       88		      dey
+    168  fcf0		       84 09		      sty	COLUBK
+    169  fcf2
+    170  fcf2		       85 02		      sta	WSYNC
+    171  fcf4
+    172  fcf4
+    173  fcf4
+    147  fcf4					      REPEND
+    148  fcf4
+    149  fcf4		       ea		      nop
+    150  fcf5		       ea		      nop
+    151  fcf6		       ea		      nop
+    152  fcf7		       ea		      nop
+    153  fcf8		       ea		      nop
+    154  fcf9		       ea		      nop
+    155  fcfa		       ea		      nop
+    156  fcfb		       ea		      nop
+    157  fcfc		       ea		      nop
+    158  fcfd
+    159  fcfd		       e8		      inx
+    160  fcfe
+    161  fcfe		       86 09		      stx	COLUBK
+    162  fd00
+    163  fd00		       ea		      nop
+    164  fd01		       ea		      nop
+    165  fd02		       ea		      nop
+    166  fd03
+    167  fd03		       88		      dey
+    168  fd04		       84 09		      sty	COLUBK
+    169  fd06
+    170  fd06		       85 02		      sta	WSYNC
+    171  fd08
+    172  fd08
+    173  fd08
+    147  fd08					      REPEND
+    148  fd08
+    149  fd08		       ea		      nop
+    150  fd09		       ea		      nop
+    151  fd0a		       ea		      nop
+    152  fd0b		       ea		      nop
+    153  fd0c		       ea		      nop
+    154  fd0d		       ea		      nop
+    155  fd0e		       ea		      nop
+    156  fd0f		       ea		      nop
+    157  fd10		       ea		      nop
+    158  fd11
+    159  fd11		       e8		      inx
+    160  fd12
+    161  fd12		       86 09		      stx	COLUBK
+    162  fd14
+    163  fd14		       ea		      nop
+    164  fd15		       ea		      nop
+    165  fd16		       ea		      nop
+    166  fd17
+    167  fd17		       88		      dey
+    168  fd18		       84 09		      sty	COLUBK
+    169  fd1a
+    170  fd1a		       85 02		      sta	WSYNC
+    171  fd1c
+    172  fd1c
+    173  fd1c
+    147  fd1c					      REPEND
+    148  fd1c
+    149  fd1c		       ea		      nop
+    150  fd1d		       ea		      nop
+    151  fd1e		       ea		      nop
+    152  fd1f		       ea		      nop
+    153  fd20		       ea		      nop
+    154  fd21		       ea		      nop
+    155  fd22		       ea		      nop
+    156  fd23		       ea		      nop
+    157  fd24		       ea		      nop
+    158  fd25
+    159  fd25		       e8		      inx
+    160  fd26
+    161  fd26		       86 09		      stx	COLUBK
+    162  fd28
+    163  fd28		       ea		      nop
+    164  fd29		       ea		      nop
+    165  fd2a		       ea		      nop
+    166  fd2b
+    167  fd2b		       88		      dey
+    168  fd2c		       84 09		      sty	COLUBK
+    169  fd2e
+    170  fd2e		       85 02		      sta	WSYNC
+    171  fd30
+    172  fd30
+    173  fd30
+    147  fd30					      REPEND
+    148  fd30
+    149  fd30		       ea		      nop
+    150  fd31		       ea		      nop
+    151  fd32		       ea		      nop
+    152  fd33		       ea		      nop
+    153  fd34		       ea		      nop
+    154  fd35		       ea		      nop
+    155  fd36		       ea		      nop
+    156  fd37		       ea		      nop
+    157  fd38		       ea		      nop
+    158  fd39
+    159  fd39		       e8		      inx
+    160  fd3a
+    161  fd3a		       86 09		      stx	COLUBK
+    162  fd3c
+    163  fd3c		       ea		      nop
+    164  fd3d		       ea		      nop
+    165  fd3e		       ea		      nop
+    166  fd3f
+    167  fd3f		       88		      dey
+    168  fd40		       84 09		      sty	COLUBK
+    169  fd42
+    170  fd42		       85 02		      sta	WSYNC
+    171  fd44
+    172  fd44
+    173  fd44
+    147  fd44					      REPEND
+    148  fd44
+    149  fd44		       ea		      nop
+    150  fd45		       ea		      nop
+    151  fd46		       ea		      nop
+    152  fd47		       ea		      nop
+    153  fd48		       ea		      nop
+    154  fd49		       ea		      nop
+    155  fd4a		       ea		      nop
+    156  fd4b		       ea		      nop
+    157  fd4c		       ea		      nop
+    158  fd4d
+    159  fd4d		       e8		      inx
+    160  fd4e
+    161  fd4e		       86 09		      stx	COLUBK
+    162  fd50
+    163  fd50		       ea		      nop
+    164  fd51		       ea		      nop
+    165  fd52		       ea		      nop
+    166  fd53
+    167  fd53		       88		      dey
+    168  fd54		       84 09		      sty	COLUBK
+    169  fd56
+    170  fd56		       85 02		      sta	WSYNC
+    171  fd58
+    172  fd58
+    173  fd58
+    147  fd58					      REPEND
+    148  fd58
+    149  fd58		       ea		      nop
+    150  fd59		       ea		      nop
+    151  fd5a		       ea		      nop
+    152  fd5b		       ea		      nop
+    153  fd5c		       ea		      nop
+    154  fd5d		       ea		      nop
+    155  fd5e		       ea		      nop
+    156  fd5f		       ea		      nop
+    157  fd60		       ea		      nop
+    158  fd61
+    159  fd61		       e8		      inx
+    160  fd62
+    161  fd62		       86 09		      stx	COLUBK
+    162  fd64
+    163  fd64		       ea		      nop
+    164  fd65		       ea		      nop
+    165  fd66		       ea		      nop
+    166  fd67
+    167  fd67		       88		      dey
+    168  fd68		       84 09		      sty	COLUBK
+    169  fd6a
+    170  fd6a		       85 02		      sta	WSYNC
+    171  fd6c
+    172  fd6c
+    173  fd6c
+    147  fd6c					      REPEND
+    148  fd6c
+    149  fd6c		       ea		      nop
+    150  fd6d		       ea		      nop
+    151  fd6e		       ea		      nop
+    152  fd6f		       ea		      nop
+    153  fd70		       ea		      nop
+    154  fd71		       ea		      nop
+    155  fd72		       ea		      nop
+    156  fd73		       ea		      nop
+    157  fd74		       ea		      nop
+    158  fd75
+    159  fd75		       e8		      inx
+    160  fd76
+    161  fd76		       86 09		      stx	COLUBK
+    162  fd78
+    163  fd78		       ea		      nop
+    164  fd79		       ea		      nop
+    165  fd7a		       ea		      nop
+    166  fd7b
+    167  fd7b		       88		      dey
+    168  fd7c		       84 09		      sty	COLUBK
+    169  fd7e
+    170  fd7e		       85 02		      sta	WSYNC
+    171  fd80
+    172  fd80
+    173  fd80
+    147  fd80					      REPEND
+    148  fd80
+    149  fd80		       ea		      nop
+    150  fd81		       ea		      nop
+    151  fd82		       ea		      nop
+    152  fd83		       ea		      nop
+    153  fd84		       ea		      nop
+    154  fd85		       ea		      nop
+    155  fd86		       ea		      nop
+    156  fd87		       ea		      nop
+    157  fd88		       ea		      nop
+    158  fd89
+    159  fd89		       e8		      inx
+    160  fd8a
+    161  fd8a		       86 09		      stx	COLUBK
+    162  fd8c
+    163  fd8c		       ea		      nop
+    164  fd8d		       ea		      nop
+    165  fd8e		       ea		      nop
+    166  fd8f
+    167  fd8f		       88		      dey
+    168  fd90		       84 09		      sty	COLUBK
+    169  fd92
+    170  fd92		       85 02		      sta	WSYNC
+    171  fd94
+    172  fd94
+    173  fd94
+    147  fd94					      REPEND
+    148  fd94
+    149  fd94		       ea		      nop
+    150  fd95		       ea		      nop
+    151  fd96		       ea		      nop
+    152  fd97		       ea		      nop
+    153  fd98		       ea		      nop
+    154  fd99		       ea		      nop
+    155  fd9a		       ea		      nop
+    156  fd9b		       ea		      nop
+    157  fd9c		       ea		      nop
+    158  fd9d
+    159  fd9d		       e8		      inx
+    160  fd9e
+    161  fd9e		       86 09		      stx	COLUBK
+    162  fda0
+    163  fda0		       ea		      nop
+    164  fda1		       ea		      nop
+    165  fda2		       ea		      nop
+    166  fda3
+    167  fda3		       88		      dey
+    168  fda4		       84 09		      sty	COLUBK
+    169  fda6
+    170  fda6		       85 02		      sta	WSYNC
+    171  fda8
+    172  fda8
+    173  fda8
+    147  fda8					      REPEND
+    148  fda8
+    149  fda8		       ea		      nop
+    150  fda9		       ea		      nop
+    151  fdaa		       ea		      nop
+    152  fdab		       ea		      nop
+    153  fdac		       ea		      nop
+    154  fdad		       ea		      nop
+    155  fdae		       ea		      nop
+    156  fdaf		       ea		      nop
+    157  fdb0		       ea		      nop
+    158  fdb1
+    159  fdb1		       e8		      inx
+    160  fdb2
+    161  fdb2		       86 09		      stx	COLUBK
+    162  fdb4
+    163  fdb4		       ea		      nop
+    164  fdb5		       ea		      nop
+    165  fdb6		       ea		      nop
+    166  fdb7
+    167  fdb7		       88		      dey
+    168  fdb8		       84 09		      sty	COLUBK
+    169  fdba
+    170  fdba		       85 02		      sta	WSYNC
+    171  fdbc
+    172  fdbc
+    173  fdbc
+    147  fdbc					      REPEND
+    148  fdbc
+    149  fdbc		       ea		      nop
+    150  fdbd		       ea		      nop
+    151  fdbe		       ea		      nop
+    152  fdbf		       ea		      nop
+    153  fdc0		       ea		      nop
+    154  fdc1		       ea		      nop
+    155  fdc2		       ea		      nop
+    156  fdc3		       ea		      nop
+    157  fdc4		       ea		      nop
+    158  fdc5
+    159  fdc5		       e8		      inx
+    160  fdc6
+    161  fdc6		       86 09		      stx	COLUBK
+    162  fdc8
+    163  fdc8		       ea		      nop
+    164  fdc9		       ea		      nop
+    165  fdca		       ea		      nop
+    166  fdcb
+    167  fdcb		       88		      dey
+    168  fdcc		       84 09		      sty	COLUBK
+    169  fdce
+    170  fdce		       85 02		      sta	WSYNC
+    171  fdd0
+    172  fdd0
+    173  fdd0
+    147  fdd0					      REPEND
+    148  fdd0
+    149  fdd0		       ea		      nop
+    150  fdd1		       ea		      nop
+    151  fdd2		       ea		      nop
+    152  fdd3		       ea		      nop
+    153  fdd4		       ea		      nop
+    154  fdd5		       ea		      nop
+    155  fdd6		       ea		      nop
+    156  fdd7		       ea		      nop
+    157  fdd8		       ea		      nop
+    158  fdd9
+    159  fdd9		       e8		      inx
+    160  fdda
+    161  fdda		       86 09		      stx	COLUBK
+    162  fddc
+    163  fddc		       ea		      nop
+    164  fddd		       ea		      nop
+    165  fdde		       ea		      nop
+    166  fddf
+    167  fddf		       88		      dey
+    168  fde0		       84 09		      sty	COLUBK
+    169  fde2
+    170  fde2		       85 02		      sta	WSYNC
+    171  fde4
+    172  fde4
+    173  fde4
+    147  fde4					      REPEND
+    148  fde4
+    149  fde4		       ea		      nop
+    150  fde5		       ea		      nop
+    151  fde6		       ea		      nop
+    152  fde7		       ea		      nop
+    153  fde8		       ea		      nop
+    154  fde9		       ea		      nop
+    155  fdea		       ea		      nop
+    156  fdeb		       ea		      nop
+    157  fdec		       ea		      nop
+    158  fded
+    159  fded		       e8		      inx
+    160  fdee
+    161  fdee		       86 09		      stx	COLUBK
+    162  fdf0
+    163  fdf0		       ea		      nop
+    164  fdf1		       ea		      nop
+    165  fdf2		       ea		      nop
+    166  fdf3
+    167  fdf3		       88		      dey
+    168  fdf4		       84 09		      sty	COLUBK
+    169  fdf6
+    170  fdf6		       85 02		      sta	WSYNC
+    171  fdf8
+    172  fdf8
+    173  fdf8
+    147  fdf8					      REPEND
+    148  fdf8
+    149  fdf8		       ea		      nop
+    150  fdf9		       ea		      nop
+    151  fdfa		       ea		      nop
+    152  fdfb		       ea		      nop
+    153  fdfc		       ea		      nop
+    154  fdfd		       ea		      nop
+    155  fdfe		       ea		      nop
+    156  fdff		       ea		      nop
+    157  fe00		       ea		      nop
+    158  fe01
+    159  fe01		       e8		      inx
+    160  fe02
+    161  fe02		       86 09		      stx	COLUBK
+    162  fe04
+    163  fe04		       ea		      nop
+    164  fe05		       ea		      nop
+    165  fe06		       ea		      nop
+    166  fe07
+    167  fe07		       88		      dey
+    168  fe08		       84 09		      sty	COLUBK
+    169  fe0a
+    170  fe0a		       85 02		      sta	WSYNC
+    171  fe0c
+    172  fe0c
+    173  fe0c
+    147  fe0c					      REPEND
+    148  fe0c
+    149  fe0c		       ea		      nop
+    150  fe0d		       ea		      nop
+    151  fe0e		       ea		      nop
+    152  fe0f		       ea		      nop
+    153  fe10		       ea		      nop
+    154  fe11		       ea		      nop
+    155  fe12		       ea		      nop
+    156  fe13		       ea		      nop
+    157  fe14		       ea		      nop
+    158  fe15
+    159  fe15		       e8		      inx
+    160  fe16
+    161  fe16		       86 09		      stx	COLUBK
+    162  fe18
+    163  fe18		       ea		      nop
+    164  fe19		       ea		      nop
+    165  fe1a		       ea		      nop
+    166  fe1b
+    167  fe1b		       88		      dey
+    168  fe1c		       84 09		      sty	COLUBK
+    169  fe1e
+    170  fe1e		       85 02		      sta	WSYNC
+    171  fe20
+    172  fe20
+    173  fe20
+    147  fe20					      REPEND
+    148  fe20
+    149  fe20		       ea		      nop
+    150  fe21		       ea		      nop
+    151  fe22		       ea		      nop
+    152  fe23		       ea		      nop
+    153  fe24		       ea		      nop
+    154  fe25		       ea		      nop
+    155  fe26		       ea		      nop
+    156  fe27		       ea		      nop
+    157  fe28		       ea		      nop
+    158  fe29
+    159  fe29		       e8		      inx
+    160  fe2a
+    161  fe2a		       86 09		      stx	COLUBK
+    162  fe2c
+    163  fe2c		       ea		      nop
+    164  fe2d		       ea		      nop
+    165  fe2e		       ea		      nop
+    166  fe2f
+    167  fe2f		       88		      dey
+    168  fe30		       84 09		      sty	COLUBK
+    169  fe32
+    170  fe32		       85 02		      sta	WSYNC
+    171  fe34
+    172  fe34
+    173  fe34
+    147  fe34					      REPEND
+    148  fe34
+    149  fe34		       ea		      nop
+    150  fe35		       ea		      nop
+    151  fe36		       ea		      nop
+    152  fe37		       ea		      nop
+    153  fe38		       ea		      nop
+    154  fe39		       ea		      nop
+    155  fe3a		       ea		      nop
+    156  fe3b		       ea		      nop
+    157  fe3c		       ea		      nop
+    158  fe3d
+    159  fe3d		       e8		      inx
+    160  fe3e
+    161  fe3e		       86 09		      stx	COLUBK
+    162  fe40
+    163  fe40		       ea		      nop
+    164  fe41		       ea		      nop
+    165  fe42		       ea		      nop
+    166  fe43
+    167  fe43		       88		      dey
+    168  fe44		       84 09		      sty	COLUBK
+    169  fe46
+    170  fe46		       85 02		      sta	WSYNC
+    171  fe48
+    172  fe48
+    173  fe48
+    147  fe48					      REPEND
+    148  fe48
+    149  fe48		       ea		      nop
+    150  fe49		       ea		      nop
+    151  fe4a		       ea		      nop
+    152  fe4b		       ea		      nop
+    153  fe4c		       ea		      nop
+    154  fe4d		       ea		      nop
+    155  fe4e		       ea		      nop
+    156  fe4f		       ea		      nop
+    157  fe50		       ea		      nop
+    158  fe51
+    159  fe51		       e8		      inx
+    160  fe52
+    161  fe52		       86 09		      stx	COLUBK
+    162  fe54
+    163  fe54		       ea		      nop
+    164  fe55		       ea		      nop
+    165  fe56		       ea		      nop
+    166  fe57
+    167  fe57		       88		      dey
+    168  fe58		       84 09		      sty	COLUBK
+    169  fe5a
+    170  fe5a		       85 02		      sta	WSYNC
+    171  fe5c
+    172  fe5c
+    173  fe5c
+    147  fe5c					      REPEND
+    148  fe5c
+    149  fe5c		       ea		      nop
+    150  fe5d		       ea		      nop
+    151  fe5e		       ea		      nop
+    152  fe5f		       ea		      nop
+    153  fe60		       ea		      nop
+    154  fe61		       ea		      nop
+    155  fe62		       ea		      nop
+    156  fe63		       ea		      nop
+    157  fe64		       ea		      nop
+    158  fe65
+    159  fe65		       e8		      inx
+    160  fe66
+    161  fe66		       86 09		      stx	COLUBK
+    162  fe68
+    163  fe68		       ea		      nop
+    164  fe69		       ea		      nop
+    165  fe6a		       ea		      nop
+    166  fe6b
+    167  fe6b		       88		      dey
+    168  fe6c		       84 09		      sty	COLUBK
+    169  fe6e
+    170  fe6e		       85 02		      sta	WSYNC
+    171  fe70
+    172  fe70
+    173  fe70
+    147  fe70					      REPEND
+    148  fe70
+    149  fe70		       ea		      nop
+    150  fe71		       ea		      nop
+    151  fe72		       ea		      nop
+    152  fe73		       ea		      nop
+    153  fe74		       ea		      nop
+    154  fe75		       ea		      nop
+    155  fe76		       ea		      nop
+    156  fe77		       ea		      nop
+    157  fe78		       ea		      nop
+    158  fe79
+    159  fe79		       e8		      inx
+    160  fe7a
+    161  fe7a		       86 09		      stx	COLUBK
+    162  fe7c
+    163  fe7c		       ea		      nop
+    164  fe7d		       ea		      nop
+    165  fe7e		       ea		      nop
+    166  fe7f
+    167  fe7f		       88		      dey
+    168  fe80		       84 09		      sty	COLUBK
+    169  fe82
+    170  fe82		       85 02		      sta	WSYNC
+    171  fe84
+    172  fe84
+    173  fe84
+    147  fe84					      REPEND
+    148  fe84
+    149  fe84		       ea		      nop
+    150  fe85		       ea		      nop
+    151  fe86		       ea		      nop
+    152  fe87		       ea		      nop
+    153  fe88		       ea		      nop
+    154  fe89		       ea		      nop
+    155  fe8a		       ea		      nop
+    156  fe8b		       ea		      nop
+    157  fe8c		       ea		      nop
+    158  fe8d
+    159  fe8d		       e8		      inx
+    160  fe8e
+    161  fe8e		       86 09		      stx	COLUBK
+    162  fe90
+    163  fe90		       ea		      nop
+    164  fe91		       ea		      nop
+    165  fe92		       ea		      nop
+    166  fe93
+    167  fe93		       88		      dey
+    168  fe94		       84 09		      sty	COLUBK
+    169  fe96
+    170  fe96		       85 02		      sta	WSYNC
+    171  fe98
+    172  fe98
+    173  fe98
+    147  fe98					      REPEND
+    148  fe98
+    149  fe98		       ea		      nop
+    150  fe99		       ea		      nop
+    151  fe9a		       ea		      nop
+    152  fe9b		       ea		      nop
+    153  fe9c		       ea		      nop
+    154  fe9d		       ea		      nop
+    155  fe9e		       ea		      nop
+    156  fe9f		       ea		      nop
+    157  fea0		       ea		      nop
+    158  fea1
+    159  fea1		       e8		      inx
+    160  fea2
+    161  fea2		       86 09		      stx	COLUBK
+    162  fea4
+    163  fea4		       ea		      nop
+    164  fea5		       ea		      nop
+    165  fea6		       ea		      nop
+    166  fea7
+    167  fea7		       88		      dey
+    168  fea8		       84 09		      sty	COLUBK
+    169  feaa
+    170  feaa		       85 02		      sta	WSYNC
+    171  feac
+    172  feac
+    173  feac
+    147  feac					      REPEND
+    148  feac
+    149  feac		       ea		      nop
+    150  fead		       ea		      nop
+    151  feae		       ea		      nop
+    152  feaf		       ea		      nop
+    153  feb0		       ea		      nop
+    154  feb1		       ea		      nop
+    155  feb2		       ea		      nop
+    156  feb3		       ea		      nop
+    157  feb4		       ea		      nop
+    158  feb5
+    159  feb5		       e8		      inx
+    160  feb6
+    161  feb6		       86 09		      stx	COLUBK
+    162  feb8
+    163  feb8		       ea		      nop
+    164  feb9		       ea		      nop
+    165  feba		       ea		      nop
+    166  febb
+    167  febb		       88		      dey
+    168  febc		       84 09		      sty	COLUBK
+    169  febe
+    170  febe		       85 02		      sta	WSYNC
+    171  fec0
+    172  fec0
+    173  fec0
+    147  fec0					      REPEND
+    148  fec0
+    149  fec0		       ea		      nop
+    150  fec1		       ea		      nop
+    151  fec2		       ea		      nop
+    152  fec3		       ea		      nop
+    153  fec4		       ea		      nop
+    154  fec5		       ea		      nop
+    155  fec6		       ea		      nop
+    156  fec7		       ea		      nop
+    157  fec8		       ea		      nop
+    158  fec9
+    159  fec9		       e8		      inx
+    160  feca
+    161  feca		       86 09		      stx	COLUBK
+    162  fecc
+    163  fecc		       ea		      nop
+    164  fecd		       ea		      nop
+    165  fece		       ea		      nop
+    166  fecf
+    167  fecf		       88		      dey
+    168  fed0		       84 09		      sty	COLUBK
+    169  fed2
+    170  fed2		       85 02		      sta	WSYNC
+    171  fed4
+    172  fed4
+    173  fed4
+    147  fed4					      REPEND
+    148  fed4
+    149  fed4		       ea		      nop
+    150  fed5		       ea		      nop
+    151  fed6		       ea		      nop
+    152  fed7		       ea		      nop
+    153  fed8		       ea		      nop
+    154  fed9		       ea		      nop
+    155  feda		       ea		      nop
+    156  fedb		       ea		      nop
+    157  fedc		       ea		      nop
+    158  fedd
+    159  fedd		       e8		      inx
+    160  fede
+    161  fede		       86 09		      stx	COLUBK
+    162  fee0
+    163  fee0		       ea		      nop
+    164  fee1		       ea		      nop
+    165  fee2		       ea		      nop
+    166  fee3
+    167  fee3		       88		      dey
+    168  fee4		       84 09		      sty	COLUBK
+    169  fee6
+    170  fee6		       85 02		      sta	WSYNC
+    171  fee8
+    172  fee8
+    173  fee8
+    147  fee8					      REPEND
+    148  fee8
+    149  fee8		       ea		      nop
+    150  fee9		       ea		      nop
+    151  feea		       ea		      nop
+    152  feeb		       ea		      nop
+    153  feec		       ea		      nop
+    154  feed		       ea		      nop
+    155  feee		       ea		      nop
+    156  feef		       ea		      nop
+    157  fef0		       ea		      nop
+    158  fef1
+    159  fef1		       e8		      inx
+    160  fef2
+    161  fef2		       86 09		      stx	COLUBK
+    162  fef4
+    163  fef4		       ea		      nop
+    164  fef5		       ea		      nop
+    165  fef6		       ea		      nop
+    166  fef7
+    167  fef7		       88		      dey
+    168  fef8		       84 09		      sty	COLUBK
+    169  fefa
+    170  fefa		       85 02		      sta	WSYNC
+    171  fefc
+    172  fefc
+    173  fefc
+    147  fefc					      REPEND
+    148  fefc
+    149  fefc		       ea		      nop
+    150  fefd		       ea		      nop
+    151  fefe		       ea		      nop
+    152  feff		       ea		      nop
+    153  ff00		       ea		      nop
+    154  ff01		       ea		      nop
+    155  ff02		       ea		      nop
+    156  ff03		       ea		      nop
+    157  ff04		       ea		      nop
+    158  ff05
+    159  ff05		       e8		      inx
+    160  ff06
+    161  ff06		       86 09		      stx	COLUBK
+    162  ff08
+    163  ff08		       ea		      nop
+    164  ff09		       ea		      nop
+    165  ff0a		       ea		      nop
+    166  ff0b
+    167  ff0b		       88		      dey
+    168  ff0c		       84 09		      sty	COLUBK
+    169  ff0e
+    170  ff0e		       85 02		      sta	WSYNC
+    171  ff10
+    172  ff10
+    173  ff10
+    147  ff10					      REPEND
+    148  ff10
+    149  ff10		       ea		      nop
+    150  ff11		       ea		      nop
+    151  ff12		       ea		      nop
+    152  ff13		       ea		      nop
+    153  ff14		       ea		      nop
+    154  ff15		       ea		      nop
+    155  ff16		       ea		      nop
+    156  ff17		       ea		      nop
+    157  ff18		       ea		      nop
+    158  ff19
+    159  ff19		       e8		      inx
+    160  ff1a
+    161  ff1a		       86 09		      stx	COLUBK
+    162  ff1c
+    163  ff1c		       ea		      nop
+    164  ff1d		       ea		      nop
+    165  ff1e		       ea		      nop
+    166  ff1f
+    167  ff1f		       88		      dey
+    168  ff20		       84 09		      sty	COLUBK
+    169  ff22
+    170  ff22		       85 02		      sta	WSYNC
+    171  ff24
+    172  ff24
+    173  ff24
+    147  ff24					      REPEND
+    148  ff24
+    149  ff24		       ea		      nop
+    150  ff25		       ea		      nop
+    151  ff26		       ea		      nop
+    152  ff27		       ea		      nop
+    153  ff28		       ea		      nop
+    154  ff29		       ea		      nop
+    155  ff2a		       ea		      nop
+    156  ff2b		       ea		      nop
+    157  ff2c		       ea		      nop
+    158  ff2d
+    159  ff2d		       e8		      inx
+    160  ff2e
+    161  ff2e		       86 09		      stx	COLUBK
+    162  ff30
+    163  ff30		       ea		      nop
+    164  ff31		       ea		      nop
+    165  ff32		       ea		      nop
+    166  ff33
+    167  ff33		       88		      dey
+    168  ff34		       84 09		      sty	COLUBK
+    169  ff36
+    170  ff36		       85 02		      sta	WSYNC
+    171  ff38
+    172  ff38
+    173  ff38
+    147  ff38					      REPEND
+    148  ff38
+    149  ff38		       ea		      nop
+    150  ff39		       ea		      nop
+    151  ff3a		       ea		      nop
+    152  ff3b		       ea		      nop
+    153  ff3c		       ea		      nop
+    154  ff3d		       ea		      nop
+    155  ff3e		       ea		      nop
+    156  ff3f		       ea		      nop
+    157  ff40		       ea		      nop
+    158  ff41
+    159  ff41		       e8		      inx
+    160  ff42
+    161  ff42		       86 09		      stx	COLUBK
+    162  ff44
+    163  ff44		       ea		      nop
+    164  ff45		       ea		      nop
+    165  ff46		       ea		      nop
+    166  ff47
+    167  ff47		       88		      dey
+    168  ff48		       84 09		      sty	COLUBK
+    169  ff4a
+    170  ff4a		       85 02		      sta	WSYNC
+    171  ff4c
+    172  ff4c
+    173  ff4c
+    147  ff4c					      REPEND
+    148  ff4c
+    149  ff4c		       ea		      nop
+    150  ff4d		       ea		      nop
+    151  ff4e		       ea		      nop
+    152  ff4f		       ea		      nop
+    153  ff50		       ea		      nop
+    154  ff51		       ea		      nop
+    155  ff52		       ea		      nop
+    156  ff53		       ea		      nop
+    157  ff54		       ea		      nop
+    158  ff55
+    159  ff55		       e8		      inx
+    160  ff56
+    161  ff56		       86 09		      stx	COLUBK
+    162  ff58
+    163  ff58		       ea		      nop
+    164  ff59		       ea		      nop
+    165  ff5a		       ea		      nop
+    166  ff5b
+    167  ff5b		       88		      dey
+    168  ff5c		       84 09		      sty	COLUBK
+    169  ff5e
+    170  ff5e		       85 02		      sta	WSYNC
+    171  ff60
+    172  ff60
+    173  ff60
+    174  ff60					      REPEND
+    175  ff60
+    176  ff60
+    177  ff60
+    178  ff60
+    179  ff60
+    180  ff60		       a9 42		      lda	#%01000010
+    181  ff62
+    182  ff62		       85 01		      sta	VBLANK	; end of screen - enter blanking
+    183  ff64
+    184  ff64
+    185  ff64
+    186  ff64							; 30 scanlines of overscan...
+    187  ff64
+    188  ff64
+    189  ff64
+    190  ff64		       85 02		      sta	WSYNC
+    191  ff66
+    192  ff66		       85 02		      sta	WSYNC
+    193  ff68
+    194  ff68		       85 02		      sta	WSYNC
+    195  ff6a
+    196  ff6a		       85 02		      sta	WSYNC
+    197  ff6c
+    198  ff6c		       85 02		      sta	WSYNC
+    199  ff6e
+    200  ff6e		       85 02		      sta	WSYNC
+    201  ff70
+    202  ff70		       85 02		      sta	WSYNC
+    203  ff72
+    204  ff72		       85 02		      sta	WSYNC
+    205  ff74
+    206  ff74		       85 02		      sta	WSYNC
+    207  ff76
+    208  ff76		       85 02		      sta	WSYNC
+    209  ff78
+    210  ff78		       85 02		      sta	WSYNC
+    211  ff7a
+    212  ff7a		       85 02		      sta	WSYNC
+    213  ff7c
+    214  ff7c		       85 02		      sta	WSYNC
+    215  ff7e
+    216  ff7e		       85 02		      sta	WSYNC
+    217  ff80
+    218  ff80		       85 02		      sta	WSYNC
+    219  ff82
+    220  ff82		       85 02		      sta	WSYNC
+    221  ff84
+    222  ff84		       85 02		      sta	WSYNC
+    223  ff86
+    224  ff86		       85 02		      sta	WSYNC
+    225  ff88
+    226  ff88		       85 02		      sta	WSYNC
+    227  ff8a
+    228  ff8a		       85 02		      sta	WSYNC
+    229  ff8c
+    230  ff8c		       85 02		      sta	WSYNC
+    231  ff8e
+    232  ff8e		       85 02		      sta	WSYNC
+    233  ff90
+    234  ff90		       85 02		      sta	WSYNC
+    235  ff92
+    236  ff92		       85 02		      sta	WSYNC
+    237  ff94
+    238  ff94		       85 02		      sta	WSYNC
+    239  ff96
+    240  ff96		       85 02		      sta	WSYNC
+    241  ff98
+    242  ff98		       85 02		      sta	WSYNC
+    243  ff9a
+    244  ff9a		       85 02		      sta	WSYNC
+    245  ff9c
+    246  ff9c		       85 02		      sta	WSYNC
+    247  ff9e
+    248  ff9e		       85 02		      sta	WSYNC
+    249  ffa0
+    250  ffa0
+    251  ffa0
+    252  ffa0		       4c 00 f0 	      jmp	StartOfFrame
+    253  ffa3
+    254  ffa3
+    255  ffa3
+    256  ffa3
+    257  ffa3
+    258  fffa					      ORG	$FFFA
+    259  fffa
+    260  fffa
+    261  fffa
+    262  fffa		       00 f0		      .word.w	Reset	; NMI
+    263  fffc
+    264  fffc		       00 f0		      .word.w	Reset	; RESET
+    265  fffe
+    266  fffe		       00 f0		      .word.w	Reset	; IRQ
+    267  10000
+    268  10000
+    269  10000
+    270  10000					       END

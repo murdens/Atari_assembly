@@ -31,6 +31,7 @@ JetAnimeOffset  byte                    ; player0 sprite frame offset for change
 Random          byte                    ; random number generator
 ScoreSprite     byte                    ; store bit pattern for score
 TimerSprite     byte                    ; store bit patter for Timer
+BomberAnimeOff  byte                    ; player 1 animation
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Define constants
@@ -61,6 +62,8 @@ Reset:
     sta BomberYPos                      ; Bomber Y
     lda #0
     sta JetAnimeOffset                  ; JetAnimeOffset = 0
+    lda #0
+    sta BomberAnimeOff                  ; = 0
     lda #%11010100
     sta Random                          ; Random = $D4
     lda #0
@@ -265,6 +268,8 @@ GasVisibleLine:
     bcc .DrawBomberSprite               ; if result < SpriteHeight, call subroutine
     lda #0                              ; else, set index to 0
 .DrawBomberSprite:
+    clc                                 ; clear carry flag before addition
+    adc BomberAnimeOff                  ; jump to correct sprite frame address in memory
     tay
     lda #%0000101                       ; pattern to stretch to
     sta NUSIZ1                          ; stretch player1 sprite
@@ -279,6 +284,8 @@ GasVisibleLine:
 
     lda #0
     sta JetAnimeOffset                  ; reset jet animation frame to zero
+    lda #0
+    sta BomberAnimeOff                  ; reset jet animation frame to zero
 
     sta WSYNC                           ; wait for next scanline
 
@@ -350,12 +357,31 @@ UpdateBomberPosition:
     cmp #0                              ; comparing Y pos with 0
     bmi .ResetBomberPosition            ; if < 0 reset Y to top #96
     dec BomberYPos                      ; else decrement BomberYPos
-    jmp EndPositionUpdate
-.ResetBomberPosition
-    jsr GetRandomBomberPos              ; call subroutine
 
+    jmp ExplosionCheck
+
+.ResetBomberPosition
+    lda #92
+    sta BomberYPos
+    jsr GetRandomBomberPos              ; call subroutine
+    
     inc Score                           ; after each enemy respawns increment score
     inc Timer                           ; increment Timer
+
+ExplosionCheck
+    lda #%10000000                      ; CXMOP bit 7 detects M0 and P1 collision
+    bit CXM0P                           ; check CXM0P register bit 7
+    bne .CollisionM0P1
+    jmp EndPositionUpdate
+
+.CollisionM0P1
+    lda BOMBER_HEIGHT                   ; =9
+    sta BomberAnimeOff                  ; set animation offset to the second frame
+    inc Score                           ; after each enemy respawns increment score
+    inc Timer                           ; increment Timer
+
+    lda #0
+    sta MissileYPos
 
 EndPositionUpdate:                      ; fall back for position update code
 
@@ -375,20 +401,22 @@ CheckCollisionP0PF:
     lda #%10000000                      ; CXP0FB bit 7 detects P0 and PF collision
     bit CXP0FB                          ; check CXP0FB register bit 7
     bne .CollisionP0PF                  ; collision P0 with playfield happened
-    jmp CheckCollisionM0P1
+    jmp EndCollisionCheck ; was CheckCollisionM0P1
 .CollisionP0PF:
     jsr GameOver                        ; call gameover subroutine when collision happens
 
 
-CheckCollisionM0P1:
-    lda #%10000000                      ; CXMOP bit 7 detects M0 and P1 collision
-    bit CXM0P                           ; check CXM0P register bit 7
-    bne .CollisionM0P1                  ; collision P0 with playfield happened
-    jmp EndCollisionCheck
-.CollisionM0P1:
-    inc Score                           ; increase score +1
-    lda #0
-    sta MissileYPos
+;CheckCollisionM0P1:
+    ;lda #%10000000                      ; CXMOP bit 7 detects M0 and P1 collision
+    ;bit CXM0P                           ; check CXM0P register bit 7
+    ;bne .CollisionM0P1                  ; collision MO with bomber happened
+;    jmp EndCollisionCheck
+;.CollisionM0P1:
+ ;   inc Score                           ; increase score +1
+
+  ;  lda #0
+   ; sta MissileYPos
+
 
 EndCollisionCheck:
     sta CXCLR                ; clear all collision flags before next frame
@@ -537,11 +565,12 @@ CalculateDigitOffset subroutine
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 Sleep12Cycles subroutine
     rts
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Declare ROM Lookup tables
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 Digits:
-     .byte %01110111 ; ### ###
+    .byte %01110111 ; ### ###
     .byte %01010101 ; # # # #
     .byte %01010101 ; # # # #
     .byte %01010101 ; # # # #
@@ -683,6 +712,17 @@ BomberSprite:
     .byte #%01000010;$02
     .byte #%01000010;$02
 
+BomberSpriteExplode:
+    .byte #%00000000 
+    .byte #%00000000;$02
+    .byte #%00000000;$02
+    .byte #%00000010;$02
+    .byte #%01000000;$40
+    .byte #%00000000;$02
+    .byte #%00000000;$02
+    .byte #%01000010;$02
+    .byte #%01000010;$02
+
 JetColor:
     .byte #$00;
     .byte #$02;
@@ -715,6 +755,16 @@ BomberColor:
     .byte #$02;
     .byte #$02;
     .byte #$02;
+
+BomberColorExplode:
+        .byte #$02;
+        .byte #$02;
+        .byte #$02;
+        .byte #$40;
+        .byte #$02;
+        .byte #$02;
+        .byte #$02;
+        .byte #$02;
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Pad ROM size with exactly 4KB
